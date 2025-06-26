@@ -1,4 +1,7 @@
+"use client"; // Converte este em um Client Component para podermos usar hooks.
+
 import Link from 'next/link';
+import { usePathname } from 'next/navigation'; // Hook para ler a URL atual
 import {
   LayoutDashboard,
   Boxes,
@@ -6,12 +9,25 @@ import {
   ScrollText,
   UserCircle,
   Power,
+  Tags, // Ícone adicionado para categorias
 } from 'lucide-react';
 
+// Criamos uma lista de links para deixar o código mais limpo e fácil de manter
+const navLinks = [
+  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/dashboard/products', label: 'Produtos', icon: Boxes },
+  // Link de Categorias reativado com um novo ícone
+  { href: '/dashboard/categories', label: 'Categorias', icon: Tags },
+  { href: '/dashboard/movements', label: 'Movimentações', icon: ArrowRightLeft },
+  { href: '/dashboard/reports', label: 'Relatórios', icon: ScrollText },
+];
+
 export function Sidebar() {
-  // Simulação de dados do usuário e do sistema
+  // Pegamos a URL atual. Ex: '/dashboard/products'
+  const pathname = usePathname();
+
+  // Simulação de dados
   const user = { name: 'Erivelton', role: 'Administrador' };
-  const systemStatus = { online: true, lowStockAlerts: 3 };
 
   return (
     <aside className="w-64 flex-shrink-0 bg-white border-r border-gray-200 flex flex-col">
@@ -26,69 +42,33 @@ export function Sidebar() {
           Navegação
         </p>
         <ul>
-          <li>
-            <Link
-              href="/dashboard"
-              className="flex items-center gap-3 py-2 px-3 rounded-md text-gray-700 hover:bg-gray-100"
-            >
-              <LayoutDashboard size={20} />
-              <span>Dashboard</span>
-            </Link>
-          </li>
-          <li>
-            <Link
-              href="/dashboard/products"
-              className="flex items-center gap-3 py-2 px-3 rounded-md text-gray-700 hover:bg-gray-100"
-            >
-              <Boxes size={20} />
-              <span>Produtos</span>
-            </Link>
-          </li>
-          <li>
-            <Link
-              href="/dashboard/categories"
-              className="flex items-center gap-3 py-2 px-3 rounded-md font-semibold text-blue-600 bg-blue-50"
-            >
-              <Boxes size={20} />
-              <span>Categorias</span>
-            </Link>
-          </li>
-          <li>
-            <Link
-              href="/dashboard/movements"
-              className="flex items-center gap-3 py-2 px-3 rounded-md text-gray-700 hover:bg-gray-100"
-            >
-              <ArrowRightLeft size={20} />
-              <span>Movimentações</span>
-            </Link>
-          </li>
-          <li>
-            <Link
-              href="/dashboard/reports"
-              className="flex items-center gap-3 py-2 px-3 rounded-md text-gray-700 hover:bg-gray-100"
-            >
-              <ScrollText size={20} />
-              <span>Relatórios</span>
-            </Link>
-          </li>
+          {navLinks.map((link) => {
+            // Verificamos se o link atual é o da página ativa
+            const isActive = pathname === link.href;
+
+            return (
+              <li key={link.href}>
+                <Link
+                  href={link.href}
+                  // Aplicamos as classes dinamicamente
+                  className={`flex items-center gap-3 py-2 px-3 rounded-md transition-colors ${isActive
+                    ? 'bg-blue-50 text-blue-600 font-semibold' // Estilo de link ativo
+                    : 'text-gray-700 hover:bg-gray-100' // Estilo de link normal
+                    }`}
+                >
+                  <link.icon size={20} />
+                  <span>{link.label}</span>
+                </Link>
+              </li>
+            );
+          })}
         </ul>
       </nav>
 
       {/* Status do Sistema e Perfil */}
       <div className="p-4 border-t border-gray-200">
-        <div className="bg-green-50 text-green-700 p-3 rounded-md text-sm mb-4">
-          <p className="font-bold">Sistema Online</p>
-          <p>Funcionando normalmente</p>
-        </div>
-
-        {systemStatus.lowStockAlerts > 0 && (
-          <div className="bg-yellow-50 text-yellow-700 p-3 rounded-md text-sm mb-4">
-            <p className="font-bold">Alertas</p>
-            <p>Produtos com estoque baixo</p>
-          </div>
-        )}
-
-        <div className="flex items-center gap-3 pt-4 border-t border-gray-200">
+        {/* ... (resto do código da sidebar, que continua igual) ... */}
+        <div className="flex items-center gap-3 pt-4 border-t border-gray-200 mt-4">
           <UserCircle size={40} className="text-gray-400" />
           <div className="flex-grow">
             <p className="font-semibold text-gray-800">{user.name}</p>
