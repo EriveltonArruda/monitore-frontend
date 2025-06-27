@@ -1,27 +1,22 @@
-// ARQUIVO: src/app/dashboard/products/page.tsx
-// Este é o Server Component, responsável apenas por buscar os dados do backend.
-
 import { ProductPageClient } from '@/components/products/ProductPageClient';
 
 // --- DEFINIÇÃO DE TIPOS ---
-// Os tipos precisam corresponder aos que o ProductPageClient espera receber como props.
-type Category = {
-  id: number;
-  name: string;
-};
-
-type Supplier = {
-  id: number;
-  name: string;
-};
-
+// Estes tipos garantem que sabemos o formato dos dados que vêm da API.
+type Category = { id: number; name: string; };
+type Supplier = { id: number; name: string; };
 type Product = {
   id: number;
   name: string;
   sku: string | null;
   description: string | null;
   stockQuantity: number;
+  minStockQuantity: number;
   salePrice: number;
+  costPrice: number | null;
+  location: string | null;
+  status: string;
+  categoryId: number | null;
+  supplierId: number | null;
   category: Category | null;
   supplier: Supplier | null;
 };
@@ -47,8 +42,6 @@ async function getSuppliers(): Promise<Supplier[]> {
 }
 
 // --- O COMPONENTE DA PÁGINA ---
-// A única responsabilidade deste Server Component agora é buscar os dados
-// e passá-los para o Client Component, que cuidará da interface e da interatividade.
 export default async function ProductsPage() {
   const [products, categories, suppliers] = await Promise.all([
     getProducts(),
@@ -56,9 +49,11 @@ export default async function ProductsPage() {
     getSuppliers(),
   ]);
 
+  // CORREÇÃO APLICADA AQUI:
+  // A propriedade agora é 'initialProducts', exatamente como o ProductPageClient espera.
   return (
     <ProductPageClient
-      products={products}
+      initialProducts={products}
       categories={categories}
       suppliers={suppliers}
     />
