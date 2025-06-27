@@ -20,10 +20,14 @@ export function MovementFormModal({ onClose, products, suppliers }: MovementForm
 
   // --- ESTADO DO COMPONENTE ---
   const [selectedType, setSelectedType] = useState('ENTRADA');
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [quantity, setQuantity] = useState(1);
   const [unitPrice, setUnitPrice] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // --- LÓGICA DE CÁLCULO ---
+  const totalPrice = unitPrice * quantity;
 
   // --- FUNÇÕES DE MANIPULAÇÃO ---
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -33,20 +37,27 @@ export function MovementFormModal({ onClose, products, suppliers }: MovementForm
 
     const formData = new FormData(event.currentTarget);
 
-    // --- LÓGICA DE COLETA DE DADOS ATUALIZADA ---
-    // Coletamos os dados do formulário e os preparamos para a API.
+    // CORREÇÃO: Lógica para pegar o nome do cliente ou do fornecedor
+    let relatedPartyName = '';
+    if (selectedType === 'ENTRADA') {
+      const supplierId = formData.get('supplierId') as string;
+      const supplier = suppliers.find(s => s.id === parseInt(supplierId, 10));
+      relatedPartyName = supplier?.name || '';
+    } else {
+      relatedPartyName = formData.get('cliente') as string;
+    }
+
     const dataToSend = {
       productId: parseInt(formData.get('productId') as string, 10),
       type: selectedType,
       quantity: parseInt(formData.get('quantity') as string, 10),
       unitPriceAtMovement: parseFloat(formData.get('unitPrice') as string),
       details: formData.get('motivo') as string,
-      relatedParty: formData.get('relatedParty') as string, // Campo dinâmico para cliente ou fornecedor
-      notes: formData.get('observacoes') as string,
       document: formData.get('document') as string,
+      notes: formData.get('observacoes') as string,
+      relatedParty: relatedPartyName,
     };
 
-    // Validação simples no frontend
     if (!dataToSend.productId || !dataToSend.type || !dataToSend.quantity || !dataToSend.details) {
       setError('Produto, Tipo, Quantidade e Motivo são obrigatórios.');
       setIsSubmitting(false);
@@ -75,9 +86,10 @@ export function MovementFormModal({ onClose, products, suppliers }: MovementForm
     }
   };
 
-  const handleProductChange = (value: string) => {
-    const productId = parseInt(value, 10);
+  const handleProductChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const productId = parseInt(e.target.value, 10);
     const product = products.find(p => p.id === productId) || null;
+    setSelectedProduct(product);
     setUnitPrice(product?.salePrice || 0);
   };
 
@@ -100,18 +112,15 @@ export function MovementFormModal({ onClose, products, suppliers }: MovementForm
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="relative">
               <label htmlFor="productId" className="block text-sm font-medium text-gray-700 mb-1">Produto *</label>
-              <select name="productId" id="productId" required onChange={(e) => handleProductChange(e.target.value)} className="w-full appearance-none border border-gray-300 rounded-md shadow-sm p-2 pl-10 bg-white">
+              <select name="productId" id="productId" required onChange={handleProductChange} className="w-full appearance-none border border-gray-300 rounded-md shadow-sm p-2 bg-white">
                 <option value="">Selecione um produto</option>
                 {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
-              <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 pt-6"><Boxes size={20} className="text-gray-400" /></div>
               <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3 pt-6"><ChevronDown size={20} className="text-gray-400" /></div>
             </div>
-            {/* ... o resto do formulário usa a mesma lógica ... */}
-            <div>
+            <div className="relative">
               <label htmlFor="type" className="block text-sm font-medium text-gray-700 mb-1">Tipo de Movimentação *</label>
-              <Select.Root value={selectedType} onValueChange={setSelectedType}>
-                {/* O 'name' aqui não é necessário pois controlamos o valor com o estado 'selectedType' */}
+              <Select.Root value={selectedType} onValueChange={setSelectedType} >
                 <Select.Trigger className="w-full h-[42px] flex items-center justify-between border border-gray-300 rounded-md shadow-sm px-3 bg-white text-left">
                   <Select.Value asChild>
                     <div className="flex items-center gap-3">
@@ -158,17 +167,25 @@ export function MovementFormModal({ onClose, products, suppliers }: MovementForm
             <input type="text" name="motivo" id="motivo" required placeholder="Ex: Compra do Fornecedor X, Venda para Cliente Y" className="w-full border border-gray-300 rounded-md shadow-sm p-2" />
           </div>
 
-          {/* Linha 4: Campos Dinâmicos */}
+          {/* Linha 4: Campos Dinâmicos (Fornecedor ou Cliente) */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              {selectedType === 'ENTRADA' && (
-                <label htmlFor="relatedParty" className="block text-sm font-medium text-gray-700 mb-1">Fornecedor</label>
-              )}
-              {(selectedType === 'SAIDA' || selectedType === 'AJUSTE') && (
-                <label htmlFor="relatedParty" className="block text-sm font-medium text-gray-700 mb-1">Cliente</label>
-              )}
-              <input type="text" name="relatedParty" id="relatedParty" placeholder={selectedType === 'ENTRADA' ? 'Nome do fornecedor' : 'Nome do cliente'} className="w-full border border-gray-300 rounded-md shadow-sm p-2" />
-            </div>
+            {selectedType === 'ENTRADA' ? (
+              // CORREÇÃO: O campo de Fornecedor agora é um SELECT
+              <div className="relative">
+                <label htmlFor="supplierId" className="block text-sm font-medium text-gray-700 mb-1">Fornecedor</label>
+                <select name="supplierId" id="supplierId" className="w-full appearance-none border border-gray-300 rounded-md shadow-sm p-2 bg-white">
+                  <option value="">Selecione um fornecedor</option>
+                  {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3 pt-6"><ChevronDown size={20} className="text-gray-400" /></div>
+              </div>
+            ) : (
+              <div>
+                <label htmlFor="cliente" className="block text-sm font-medium text-gray-700 mb-1">Cliente</label>
+                <input type="text" name="cliente" id="cliente" placeholder="Nome do cliente" className="w-full border border-gray-300 rounded-md shadow-sm p-2" />
+              </div>
+            )}
+
             <div>
               <label htmlFor="document" className="block text-sm font-medium text-gray-700 mb-1">Documento de Referência</label>
               <input type="text" name="document" id="document" placeholder="Nº da NF, pedido, etc." className="w-full border border-gray-300 rounded-md shadow-sm p-2" />
