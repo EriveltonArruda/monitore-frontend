@@ -10,22 +10,39 @@ import {
   UserCircle,
   Power,
   Tags,
-  Building, // Ícone adicionado para Fornecedores
+  Building,
+  Landmark, // Ícone para Contas a Pagar
+  Contact,  // Ícone para Lista de Contatos
 } from 'lucide-react';
 
-// Adicionamos o novo link para Fornecedores
-const navLinks = [
+// Links da navegação principal de estoque
+const stockNavLinks = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/dashboard/products', label: 'Produtos', icon: Boxes },
   { href: '/dashboard/categories', label: 'Categorias', icon: Tags },
-  { href: '/dashboard/suppliers', label: 'Fornecedores', icon: Building }, // NOVO LINK
+  { href: '/dashboard/suppliers', label: 'Fornecedores', icon: Building },
   { href: '/dashboard/movements', label: 'Movimentações', icon: ArrowRightLeft },
   { href: '/dashboard/reports', label: 'Relatórios', icon: ScrollText },
 ];
 
+// Novos links para a seção de gerenciamento
+const managementNavLinks = [
+  { href: '/dashboard/accounts-payable', label: 'Contas a Pagar', icon: Landmark },
+  { href: '/dashboard/contacts', label: 'Lista de Contatos', icon: Contact },
+]
+
 export function Sidebar() {
   const pathname = usePathname();
   const user = { name: 'Erivelton', role: 'Administrador' };
+
+  // Helper function para verificar o link ativo
+  const checkIsActive = (href: string) => {
+    // Para o link do Dashboard, exigimos uma correspondência exata.
+    // Para os outros, `startsWith` funciona bem para sub-páginas.
+    return href === '/dashboard'
+      ? pathname === href
+      : pathname.startsWith(href);
+  };
 
   return (
     <aside className="w-64 flex-shrink-0 bg-white border-r border-gray-200 flex flex-col">
@@ -35,35 +52,63 @@ export function Sidebar() {
       </div>
 
       {/* Navegação Principal */}
-      <nav className="flex-grow p-4">
-        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 px-2">
-          Navegação
-        </p>
-        <ul>
-          {navLinks.map((link) => {
-            const isActive = pathname.startsWith(link.href);
-            return (
-              <li key={link.href}>
-                <Link
-                  href={link.href}
-                  className={`flex items-center gap-3 py-2 px-3 rounded-md transition-colors ${isActive
-                    ? 'bg-blue-50 text-blue-600 font-semibold'
-                    : 'text-gray-700 hover:bg-gray-100'
-                    }`}
-                >
-                  <link.icon size={20} />
-                  <span>{link.label}</span>
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
+      <nav className="flex-grow p-4 space-y-6">
+        {/* Seção de Navegação de Estoque */}
+        <div>
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 px-2">
+            Navegação
+          </p>
+          <ul>
+            {stockNavLinks.map((link) => {
+              const isActive = checkIsActive(link.href);
+              return (
+                <li key={link.href}>
+                  <Link
+                    href={link.href}
+                    className={`flex items-center gap-3 py-2 px-3 rounded-md transition-colors ${isActive
+                      ? 'bg-blue-50 text-blue-600 font-semibold'
+                      : 'text-gray-700 hover:bg-gray-100'
+                      }`}
+                  >
+                    <link.icon size={20} />
+                    <span>{link.label}</span>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+
+        {/* Seção de Gerenciamento */}
+        <div>
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 px-2">
+            Gerenciamento
+          </p>
+          <ul>
+            {managementNavLinks.map((link) => {
+              const isActive = checkIsActive(link.href);
+              return (
+                <li key={link.href}>
+                  <Link
+                    href={link.href}
+                    className={`flex items-center gap-3 py-2 px-3 rounded-md transition-colors ${isActive
+                      ? 'bg-blue-50 text-blue-600 font-semibold'
+                      : 'text-gray-700 hover:bg-gray-100'
+                      }`}
+                  >
+                    <link.icon size={20} />
+                    <span>{link.label}</span>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
       </nav>
 
-      {/* Status e Perfil */}
+      {/* Perfil do Usuário */}
       <div className="p-4 border-t border-gray-200">
-        {/* ... (código de status do sistema) ... */}
-        <div className="flex items-center gap-3 pt-4 border-t border-gray-200 mt-4">
+        <div className="flex items-center gap-3">
           <UserCircle size={40} className="text-gray-400" />
           <div className="flex-grow">
             <p className="font-semibold text-gray-800">{user.name}</p>

@@ -169,6 +169,9 @@ const RecentMovementItem = ({ movement }: { movement: RecentMovement }) => {
   const isEntry = movement.type === 'ENTRADA';
   const totalValue = (movement.unitPriceAtMovement || 0) * movement.quantity;
 
+  // CORREÇÃO APLICADA AQUI
+  const movementTypeLabel = movement.type.charAt(0).toUpperCase() + movement.type.slice(1).toLowerCase();
+
   return (
     <div className="flex items-start gap-4 p-3 rounded-lg hover:bg-gray-50">
       <div className={`mt-1 w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${isEntry ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
@@ -178,7 +181,7 @@ const RecentMovementItem = ({ movement }: { movement: RecentMovement }) => {
         <div className="flex justify-between items-center">
           <p className="font-bold text-gray-800">{movement.product.name}
             <span className={`ml-2 text-xs font-semibold px-2 py-0.5 rounded-full ${isEntry ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-              {movement.type}
+              {movementTypeLabel}
             </span>
           </p>
           <p className="font-semibold text-gray-800 text-right">{totalValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>

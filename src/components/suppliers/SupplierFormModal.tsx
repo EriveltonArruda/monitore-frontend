@@ -102,21 +102,21 @@ export function SupplierFormModal({ onClose, supplierToEdit }: SupplierFormModal
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div>
             <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">Nome da Empresa *</label>
-            <input type="text" id="name" value={formData.name} onChange={handleChange} required className="w-full border border-gray-300 rounded-md p-2" />
+            <input type="text" id="name" placeholder="Digite o nome da empresa" value={formData.name} onChange={handleChange} required className="w-full border border-gray-300 rounded-md p-2" />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label htmlFor="cnpj" className="block text-sm font-medium text-gray-700 mb-1">CNPJ</label>
-              <input type="text" id="cnpj" value={formData.cnpj} onChange={handleChange} className="w-full border border-gray-300 rounded-md p-2" />
+              <input type="text" id="cnpj" placeholder='Digite o CNPJ da empresa' value={formData.cnpj} onChange={handleChange} className="w-full border border-gray-300 rounded-md p-2" />
             </div>
             <div>
               <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">Telefone</label>
-              <input type="text" id="phone" value={formData.phone} onChange={handleChange} className="w-full border border-gray-300 rounded-md p-2" />
+              <input type="text" id="phone" placeholder='Digite o Telefone da empresa' value={formData.phone} onChange={handleChange} className="w-full border border-gray-300 rounded-md p-2" />
             </div>
           </div>
           <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-            <input type="email" id="email" value={formData.email} onChange={handleChange} className="w-full border border-gray-300 rounded-md p-2" />
+            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">E-mail</label>
+            <input type="email" id="email" placeholder='Digite o E-mail da empresa' value={formData.email} onChange={handleChange} className="w-full border border-gray-300 rounded-md p-2" />
           </div>
           {error && <p className="text-sm text-red-500">{error}</p>}
           <div className="flex justify-end gap-4 pt-4 border-t mt-4">
