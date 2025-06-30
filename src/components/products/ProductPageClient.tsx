@@ -147,16 +147,16 @@ export function ProductPageClient({ initialProducts, categories, suppliers }: Pr
             <Search size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
             <input type="text" placeholder="Pesquisar produtos..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full h-10 pl-10 pr-4 border border-gray-200 rounded-lg" />
           </div>
-          <select value={selectedCategory} onChange={(e) => setSelectedCategory(e.target.value)} className="h-10 border border-gray-200 rounded-lg bg-white px-2 text-gray-700">
+          <select title='Todas Categorias' value={selectedCategory} onChange={(e) => setSelectedCategory(e.target.value)} className="h-10 border border-gray-200 rounded-lg bg-white px-2 text-gray-700">
             <option value="">Todas Categorias</option>
             {categories.map(cat => <option key={cat.id} value={String(cat.id)}>{cat.name}</option>)}
           </select>
-          <select value={selectedStatus} onChange={(e) => setSelectedStatus(e.target.value)} className="h-10 border border-gray-200 rounded-lg bg-white px-2 text-gray-700">
+          <select title='Todos Status' value={selectedStatus} onChange={(e) => setSelectedStatus(e.target.value)} className="h-10 border border-gray-200 rounded-lg bg-white px-2 text-gray-700">
             <option value="">Todos Status</option>
             <option value="ATIVO">Ativo</option>
             <option value="INATIVO">Inativo</option>
           </select>
-          <select value={selectedStockLevel} onChange={(e) => setSelectedStockLevel(e.target.value)} className="h-10 border border-gray-200 rounded-lg bg-white px-2 text-gray-700">
+          <select title='Todos Níveis' value={selectedStockLevel} onChange={(e) => setSelectedStockLevel(e.target.value)} className="h-10 border border-gray-200 rounded-lg bg-white px-2 text-gray-700">
             <option value="">Todos Níveis</option>
             <option value="low">Estoque Baixo</option>
             <option value="normal">Estoque Normal</option>
@@ -194,8 +194,8 @@ export function ProductPageClient({ initialProducts, categories, suppliers }: Pr
                     <td className="p-4">
                       {/* CORREÇÃO APLICADA AQUI */}
                       <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${product.status === 'ATIVO'
-                          ? 'bg-green-100 text-green-700'
-                          : 'bg-red-100 text-red-700'
+                        ? 'bg-green-100 text-green-700'
+                        : 'bg-red-100 text-red-700'
                         }`}>
                         {product.status.charAt(0).toUpperCase() + product.status.slice(1).toLowerCase()}
                       </span>
