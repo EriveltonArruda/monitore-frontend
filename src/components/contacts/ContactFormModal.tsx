@@ -100,12 +100,12 @@ export function ContactFormModal({
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div>
             <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">Nome *</label>
-            <input type="text" id="name" value={formData.name} onChange={handleChange} required className="w-full border border-gray-300 rounded-md p-2" />
+            <input type="text" id="name" placeholder="Digite o nome do contato" value={formData.name} onChange={handleChange} required className="w-full border border-gray-300 rounded-md p-2" />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label htmlFor="company" className="block text-sm font-medium text-gray-700 mb-1">Empresa</label>
-              <input type="text" id="company" value={formData.company} onChange={handleChange} className="w-full border border-gray-300 rounded-md p-2" />
+              <input type="text" id="company" placeholder="Digite o nome da Empresa" value={formData.company} onChange={handleChange} className="w-full border border-gray-300 rounded-md p-2" />
             </div>
             <div>
               <label htmlFor="type" className="block text-sm font-medium text-gray-700 mb-1">Tipo</label>
@@ -120,11 +120,11 @@ export function ContactFormModal({
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-              <input type="email" id="email" value={formData.email} onChange={handleChange} className="w-full border border-gray-300 rounded-md p-2" />
+              <input type="email" placeholder="Digite o email do contato" id="email" value={formData.email} onChange={handleChange} className="w-full border border-gray-300 rounded-md p-2" />
             </div>
             <div>
               <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">Telefone</label>
-              <input type="text" id="phone" value={formData.phone} onChange={handleChange} className="w-full border border-gray-300 rounded-md p-2" />
+              <input type="text" id="phone" placeholder='Digite o telefone do contato' value={formData.phone} onChange={handleChange} className="w-full border border-gray-300 rounded-md p-2" />
             </div>
           </div>
           {error && <p className="text-sm text-red-500">{error}</p>}
