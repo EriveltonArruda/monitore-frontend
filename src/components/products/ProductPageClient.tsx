@@ -50,6 +50,12 @@ export function ProductPageClient({ initialProducts, categories, suppliers }: Pr
   const [selectedStatus, setSelectedStatus] = useState('');
   const [selectedStockLevel, setSelectedStockLevel] = useState('');
 
+  // Efeito para sincronizar o estado local com as props quando elas mudam (após router.refresh)
+  useEffect(() => {
+    setProducts(initialProducts);
+  }, [initialProducts]);
+
+
   // Efeito que busca os produtos novamente sempre que um filtro muda
   useEffect(() => {
     const fetchProducts = async () => {
@@ -91,13 +97,19 @@ export function ProductPageClient({ initialProducts, categories, suppliers }: Pr
     setDeletingProduct(null);
   };
 
+  // Callback para quando um produto é criado/editado com sucesso
+  const handleSuccess = () => {
+    handleCloseModals();
+    router.refresh(); // Mantemos o refresh para garantir consistência geral
+  };
+
   const handleDeleteConfirm = async () => {
     if (!deletingProduct) return;
     setIsDeleting(true);
     try {
       await fetch(`http://localhost:3001/products/${deletingProduct.id}`, { method: 'DELETE' });
-      router.refresh();
-      handleCloseModals();
+      setProducts(products.filter(p => p.id !== deletingProduct.id)); // <-- Atualização otimista da UI
+      handleCloseModals(); // Fecha o modal imediatamente
     } catch (error) {
       alert('Ocorreu um erro ao deletar o produto.');
     } finally {
@@ -115,7 +127,8 @@ export function ProductPageClient({ initialProducts, categories, suppliers }: Pr
       {/* Modais de Criar/Editar e Deletar */}
       {isModalOpen && (
         <ProductFormModal
-          onClose={handleCloseModals}
+          onSuccess={handleSuccess}
+          onClose={handleCloseModals} // Mantemos o onClose para o botão 'X' e clique fora
           categories={categories}
           suppliers={suppliers}
           productToEdit={editingProduct}

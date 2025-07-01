@@ -18,12 +18,13 @@ type Product = {
 
 type ProductFormModalProps = {
   onClose: () => void;
+  onSuccess: () => void; // <-- Adicionamos a nova prop de callback
   categories: Category[];
   suppliers: Supplier[];
   productToEdit?: Product | null; // A prop agora é opcional
 };
 
-export function ProductFormModal({ onClose, categories, suppliers, productToEdit }: ProductFormModalProps) {
+export function ProductFormModal({ onClose, onSuccess, categories, suppliers, productToEdit }: ProductFormModalProps) {
   const router = useRouter();
 
   // Verifica se estamos em modo de edição
@@ -115,8 +116,7 @@ export function ProductFormModal({ onClose, categories, suppliers, productToEdit
         throw new Error(errorData.message || 'Falha ao salvar produto.');
       }
 
-      router.refresh(); // Revalida os dados da página
-      onClose(); // Fecha o modal
+      onSuccess(); // Chama o callback de sucesso para o componente pai lidar com o refresh e o fechamento
 
     } catch (err: any) {
       setError(err.message);
