@@ -1,7 +1,8 @@
 "use client";
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation'; // 1. Importamos o useRouter
+import Cookies from 'js-cookie'; // 2. Importamos a biblioteca de cookies
 import {
   LayoutDashboard,
   Boxes,
@@ -11,8 +12,9 @@ import {
   Power,
   Tags,
   Building,
-  Landmark, // Ícone para Contas a Pagar
-  Contact,  // Ícone para Lista de Contatos
+  Landmark,
+  Contact,
+  Users,
 } from 'lucide-react';
 
 // Links da navegação principal de estoque
@@ -25,20 +27,28 @@ const stockNavLinks = [
   { href: '/dashboard/reports', label: 'Relatórios', icon: ScrollText },
 ];
 
-// Novos links para a seção de gerenciamento
+// Links para a seção de gerenciamento
 const managementNavLinks = [
   { href: '/dashboard/accounts-payable', label: 'Contas a Pagar', icon: Landmark },
   { href: '/dashboard/contacts', label: 'Lista de Contatos', icon: Contact },
+  { href: '/dashboard/users', label: 'Gerenciar Usuários', icon: Users },
 ]
 
 export function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter(); // 3. Inicializamos o router
   const user = { name: 'Erivelton', role: 'Administrador' };
+
+  // 4. Criamos a função de Logout
+  const handleLogout = () => {
+    // Remove o cookie de autenticação
+    Cookies.remove('auth_token');
+    // Redireciona o usuário para a página de login
+    router.push('/login');
+  };
 
   // Helper function para verificar o link ativo
   const checkIsActive = (href: string) => {
-    // Para o link do Dashboard, exigimos uma correspondência exata.
-    // Para os outros, `startsWith` funciona bem para sub-páginas.
     return href === '/dashboard'
       ? pathname === href
       : pathname.startsWith(href);
@@ -48,7 +58,7 @@ export function Sidebar() {
     <aside className="w-64 flex-shrink-0 bg-white border-r border-gray-200 flex flex-col">
       {/* Logo */}
       <div className="h-16 flex items-center px-6 border-b border-gray-200">
-        <h1 className="text-xl font-bold text-blue-600">Estoque Monitore</h1>
+        <h1 className="text-xl font-bold text-blue-600">Monitore</h1>
       </div>
 
       {/* Navegação Principal */}
@@ -114,7 +124,8 @@ export function Sidebar() {
             <p className="font-semibold text-gray-800">{user.name}</p>
             <p className="text-xs text-gray-500">{user.role}</p>
           </div>
-          <button className="text-gray-400 hover:text-red-500">
+          {/* 5. O botão agora chama a função de logout */}
+          <button onClick={handleLogout} className="text-gray-400 hover:text-red-500">
             <Power size={20} />
           </button>
         </div>
