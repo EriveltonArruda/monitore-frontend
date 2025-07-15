@@ -1,7 +1,7 @@
+// Este Server Component é a única fonte da verdade para buscar dados.
+
 import { ProductPageClient } from '@/components/products/ProductPageClient';
 
-// --- DEFINIÇÃO DE TIPOS ---
-// Estes tipos garantem que sabemos o formato dos dados que vêm da API.
 type Category = { id: number; name: string; };
 type Supplier = { id: number; name: string; };
 type Product = {
@@ -21,39 +21,58 @@ type Product = {
   supplier: Supplier | null;
 };
 
-// --- FUNÇÕES DE BUSCA DE DADOS ---
-// Funções que rodam no servidor para buscar os dados.
-async function getProducts(): Promise<Product[]> {
-  const response = await fetch('http://localhost:3001/products', { cache: 'no-store' });
-  if (!response.ok) throw new Error('Falha ao buscar produtos');
+// Funções de busca de dados...
+async function getPaginatedProducts(params: URLSearchParams) {
+  const response = await fetch(`http://localhost:3001/products?${params.toString()}`, { cache: 'no-store' });
+  if (!response.ok) return { data: [], total: 0 };
   return response.json();
 }
-
 async function getCategories(): Promise<Category[]> {
-  const response = await fetch('http://localhost:3001/categories', { cache: 'no-store' });
-  if (!response.ok) throw new Error('Falha ao buscar categorias');
-  return response.json();
+  const res = await fetch('http://localhost:3001/categories', { cache: 'no-store' });
+  if (!res.ok) return [];
+  return res.json();
 }
-
 async function getSuppliers(): Promise<Supplier[]> {
-  const response = await fetch('http://localhost:3001/suppliers', { cache: 'no-store' });
-  if (!response.ok) throw new Error('Falha ao buscar fornecedores');
-  return response.json();
+  const res = await fetch('http://localhost:3001/suppliers', { cache: 'no-store' });
+  if (!res.ok) return [];
+  return res.json();
 }
 
-// --- O COMPONENTE DA PÁGINA ---
-export default async function ProductsPage() {
-  const [products, categories, suppliers] = await Promise.all([
-    getProducts(),
+export default async function ProductsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
+  // aguarda o objeto searchParams resolver
+  const resolvedSearchParams = await searchParams;
+
+  const params = new URLSearchParams();
+
+  if (resolvedSearchParams.search) {
+    params.append('search', Array.isArray(resolvedSearchParams.search) ? resolvedSearchParams.search[0] : resolvedSearchParams.search);
+  }
+  if (resolvedSearchParams.categoryId) {
+    params.append('categoryId', Array.isArray(resolvedSearchParams.categoryId) ? resolvedSearchParams.categoryId[0] : resolvedSearchParams.categoryId);
+  }
+  if (resolvedSearchParams.status) {
+    params.append('status', Array.isArray(resolvedSearchParams.status) ? resolvedSearchParams.status[0] : resolvedSearchParams.status);
+  }
+  if (resolvedSearchParams.stockLevel) {
+    params.append('stockLevel', Array.isArray(resolvedSearchParams.stockLevel) ? resolvedSearchParams.stockLevel[0] : resolvedSearchParams.stockLevel);
+  }
+  params.append('page', Array.isArray(resolvedSearchParams.page) ? resolvedSearchParams.page[0] : resolvedSearchParams.page || '1');
+  params.append('limit', '9');
+
+  const [paginatedProducts, categories, suppliers] = await Promise.all([
+    getPaginatedProducts(params),
     getCategories(),
     getSuppliers(),
   ]);
 
-  // CORREÇÃO APLICADA AQUI:
-  // A propriedade agora é 'initialProducts', exatamente como o ProductPageClient espera.
   return (
     <ProductPageClient
-      initialProducts={products}
+      products={paginatedProducts.data}
+      totalProducts={paginatedProducts.total}
       categories={categories}
       suppliers={suppliers}
     />

@@ -1,3 +1,4 @@
+// CORREÇÃO: A função handleSubmit foi refatorada com um bloco if/else explícito.
 "use client";
 
 import { X } from 'lucide-react';
@@ -18,26 +19,21 @@ type Product = {
 
 type ProductFormModalProps = {
   onClose: () => void;
-  onSuccess: () => void; // <-- Adicionamos a nova prop de callback
+  onSuccess: () => void;
   categories: Category[];
   suppliers: Supplier[];
-  productToEdit?: Product | null; // A prop agora é opcional
+  productToEdit?: Product | null;
 };
 
 export function ProductFormModal({ onClose, onSuccess, categories, suppliers, productToEdit }: ProductFormModalProps) {
-  const router = useRouter();
-
-  // Verifica se estamos em modo de edição
   const isEditMode = Boolean(productToEdit);
 
-  // Estado para armazenar os dados do formulário
   const [formData, setFormData] = useState({
     name: '', sku: '', description: '', categoryId: '', status: 'ATIVO',
     stockQuantity: 0, minStockQuantity: 10, salePrice: 0, costPrice: 0,
     supplierId: '', location: '',
   });
 
-  // Efeito para preencher o formulário quando abrimos em modo de edição
   useEffect(() => {
     if (isEditMode && productToEdit) {
       setFormData({
@@ -56,27 +52,18 @@ export function ProductFormModal({ onClose, onSuccess, categories, suppliers, pr
     }
   }, [isEditMode, productToEdit]);
 
-
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-    const { id, value } = e.target;
-    setFormData(prev => ({ ...prev, [id]: value }));
+    setFormData({ ...formData, [e.target.id]: e.target.value });
   };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-
-    if (isEditMode && !productToEdit) {
-      setError("Erro: Não foi possível encontrar o produto para editar.");
-      return;
-    }
-
     setIsSubmitting(true);
     setError(null);
 
-    // Formata os dados para enviar à API
     const dataToSend = {
       ...formData,
       categoryId: parseInt(formData.categoryId, 10),
@@ -89,11 +76,9 @@ export function ProductFormModal({ onClose, onSuccess, categories, suppliers, pr
 
     try {
       let response;
-
-      // Lógica de Edição
       if (isEditMode) {
         if (!productToEdit) {
-          throw new Error("Erro: Produto para edição não encontrado.");
+          throw new Error("Erro: Produto para edição não foi encontrado.");
         }
         const url = `http://localhost:3001/products/${productToEdit.id}`;
         response = await fetch(url, {
@@ -102,7 +87,6 @@ export function ProductFormModal({ onClose, onSuccess, categories, suppliers, pr
           body: JSON.stringify(dataToSend),
         });
       } else {
-        // Lógica de Criação
         const url = 'http://localhost:3001/products';
         response = await fetch(url, {
           method: 'POST',
@@ -116,7 +100,7 @@ export function ProductFormModal({ onClose, onSuccess, categories, suppliers, pr
         throw new Error(errorData.message || 'Falha ao salvar produto.');
       }
 
-      onSuccess(); // Chama o callback de sucesso para o componente pai lidar com o refresh e o fechamento
+      onSuccess();
 
     } catch (err: any) {
       setError(err.message);
@@ -128,7 +112,6 @@ export function ProductFormModal({ onClose, onSuccess, categories, suppliers, pr
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-xl shadow-lg w-full max-w-2xl max-h-[90vh] flex flex-col">
-        {/* Cabeçalho do Modal */}
         <div className="flex justify-between items-center p-6 border-b border-gray-200">
           <h2 className="text-2xl font-bold text-gray-800">
             {isEditMode ? 'Editar Produto' : 'Novo Produto'}
@@ -139,7 +122,6 @@ export function ProductFormModal({ onClose, onSuccess, categories, suppliers, pr
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto">
-          {/* JSX do formulário completo com placeholders */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">Nome do Produto *</label>
