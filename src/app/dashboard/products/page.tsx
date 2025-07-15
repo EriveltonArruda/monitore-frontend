@@ -32,10 +32,12 @@ async function getCategories(): Promise<{ data: Category[]; total: number }> {
   if (!res.ok) return { data: [], total: 0 };
   return res.json();
 }
+
 async function getSuppliers(): Promise<Supplier[]> {
   const res = await fetch('http://localhost:3001/suppliers', { cache: 'no-store' });
   if (!res.ok) return [];
-  return res.json();
+  const result = await res.json();
+  return result.data || []; // ✅ retorna sempre um array, mesmo se for undefined
 }
 
 export default async function ProductsPage({

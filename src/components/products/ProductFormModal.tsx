@@ -101,6 +101,7 @@ export function ProductFormModal({ onClose, onSuccess, categories, suppliers, pr
       }
 
       onSuccess();
+      onClose();
 
     } catch (err: any) {
       setError(err.message);
@@ -179,9 +180,21 @@ export function ProductFormModal({ onClose, onSuccess, categories, suppliers, pr
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label htmlFor="supplierId" className="block text-sm font-medium text-gray-700 mb-1">Fornecedor</label>
-              <select id="supplierId" name="supplierId" value={formData.supplierId} onChange={handleChange} className="w-full border border-gray-300 rounded-md shadow-sm p-2 bg-white">
+              <select
+                id="supplierId"
+                name="supplierId"
+                value={formData.supplierId}
+                onChange={handleChange}
+                className="w-full border border-gray-300 rounded-md shadow-sm p-2 bg-white"
+              >
                 <option value="">Selecione um fornecedor</option>
-                {suppliers.map(sup => <option key={sup.id} value={sup.id}>{sup.name}</option>)}
+                {Array.isArray(suppliers)
+                  ? suppliers.map(sup => (
+                    <option key={sup.id} value={sup.id}>
+                      {sup.name}
+                    </option>
+                  ))
+                  : <option disabled>Erro ao carregar fornecedores</option>}
               </select>
             </div>
             <div>

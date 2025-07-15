@@ -2,11 +2,12 @@
 
 import React, { useState } from 'react';
 import { PlusCircle, Pencil, Trash2 } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { SupplierFormModal } from './SupplierFormModal';
 import { DeleteConfirmationModal } from '../DeleteConfirmationModal';
+// CORREÇÃO: Importamos o componente de paginação padrão.
+import { Pagination } from '../Pagination';
 
-// O tipo para os dados de um único fornecedor, incluindo os novos campos.
 type Supplier = {
   id: number;
   name: string;
@@ -15,57 +16,35 @@ type Supplier = {
   email?: string | null;
 };
 
-// As props que este componente recebe da página do servidor.
 type SuppliersPageClientProps = {
-  suppliers: Supplier[];
+  initialSuppliers: Supplier[];
+  totalSuppliers: number;
 };
 
-export function SuppliersPageClient({ suppliers }: SuppliersPageClientProps) {
-  const router = useRouter();
+const ITEMS_PER_PAGE = 10;
 
-  // --- Gerenciamento de Estado ---
-  // Controla se o modal de formulário (criar/editar) está aberto.
+export function SuppliersPageClient({ initialSuppliers, totalSuppliers }: SuppliersPageClientProps) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // A lógica de modais continua a mesma...
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
-  // Controla se o modal de confirmação de deleção está aberto.
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  // Guarda os dados do fornecedor que está sendo editado.
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
-  // Guarda os dados do fornecedor que será deletado.
   const [deletingSupplier, setDeletingSupplier] = useState<Supplier | null>(null);
-  // Controla o estado de "carregando" do botão de deletar.
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // --- Funções para Manipular os Modais ---
-  const handleOpenCreateModal = () => {
-    setEditingSupplier(null); // Garante que estamos criando, não editando
-    setIsFormModalOpen(true);
-  };
+  const handleOpenCreateModal = () => { setEditingSupplier(null); setIsFormModalOpen(true); };
+  const handleOpenEditModal = (supplier: Supplier) => { setEditingSupplier(supplier); setIsFormModalOpen(true); };
+  const handleOpenDeleteModal = (supplier: Supplier) => { setDeletingSupplier(supplier); setIsDeleteModalOpen(true); };
+  const handleCloseModals = () => { setIsFormModalOpen(false); setIsDeleteModalOpen(false); setEditingSupplier(null); setDeletingSupplier(null); };
 
-  const handleOpenEditModal = (supplier: Supplier) => {
-    setEditingSupplier(supplier);
-    setIsFormModalOpen(true);
-  };
-
-  const handleOpenDeleteModal = (supplier: Supplier) => {
-    setDeletingSupplier(supplier);
-    setIsDeleteModalOpen(true);
-  };
-
-  const handleCloseModals = () => {
-    setIsFormModalOpen(false);
-    setIsDeleteModalOpen(false);
-    setEditingSupplier(null);
-    setDeletingSupplier(null);
-  };
-
-  // Função para confirmar e executar a deleção
   const handleDeleteConfirm = async () => {
     if (!deletingSupplier) return;
-
     setIsDeleting(true);
     try {
       await fetch(`http://localhost:3001/suppliers/${deletingSupplier.id}`, { method: 'DELETE' });
-      router.refresh(); // Atualiza a lista de fornecedores na tela
+      router.refresh();
       handleCloseModals();
     } catch (error) {
       alert('Ocorreu um erro ao deletar o fornecedor.');
@@ -74,9 +53,12 @@ export function SuppliersPageClient({ suppliers }: SuppliersPageClientProps) {
     }
   };
 
+  // Lógica para a paginação
+  const totalPages = Math.ceil(totalSuppliers / ITEMS_PER_PAGE);
+  const currentPage = Number(searchParams.get('page')) || 1;
+
   return (
     <>
-      {/* Renderização condicional dos modais */}
       {isFormModalOpen && (
         <SupplierFormModal
           onClose={handleCloseModals}
@@ -91,8 +73,6 @@ export function SuppliersPageClient({ suppliers }: SuppliersPageClientProps) {
           isDeleting={isDeleting}
         />
       )}
-
-      {/* Layout Principal da Página */}
       <div className="max-w-7xl mx-auto">
         <div className="flex justify-between items-center mb-8">
           <div>
@@ -109,7 +89,6 @@ export function SuppliersPageClient({ suppliers }: SuppliersPageClientProps) {
         </div>
         <div className="bg-white p-4 rounded-xl shadow-sm">
           <table className="w-full table-auto">
-            {/* Cabeçalho da Tabela com as Novas Colunas */}
             <thead className="text-left border-b-2 border-gray-100">
               <tr>
                 <th className="p-4 font-semibold text-gray-600">Nome da Empresa</th>
@@ -120,9 +99,8 @@ export function SuppliersPageClient({ suppliers }: SuppliersPageClientProps) {
               </tr>
             </thead>
             <tbody>
-              {suppliers.map((supplier) => (
+              {initialSuppliers.map((supplier) => (
                 <tr key={supplier.id} className="border-b border-gray-50 last:border-b-0 hover:bg-gray-50">
-                  {/* Células da Tabela Exibindo os Novos Dados */}
                   <td className="p-4 font-medium text-gray-800">{supplier.name}</td>
                   <td className="p-4 text-gray-600">{supplier.cnpj || '-'}</td>
                   <td className="p-4 text-gray-600">{supplier.phone || '-'}</td>
@@ -142,6 +120,12 @@ export function SuppliersPageClient({ suppliers }: SuppliersPageClientProps) {
             </tbody>
           </table>
         </div>
+
+        {/* CORREÇÃO: Adicionamos o componente de paginação padrão e passamos as props corretas */}
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+        />
       </div>
     </>
   );
