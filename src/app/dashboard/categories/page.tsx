@@ -1,30 +1,43 @@
 import { CategoriesPageClient } from '@/components/categories/CategoriesPageClient';
 
-// Definimos o tipo de dados que esperamos receber da nossa API.
 type Category = {
   id: number;
   name: string;
 };
 
-// Esta função assíncrona roda no servidor para buscar os dados.
-async function getCategories(): Promise<Category[]> {
-  const response = await fetch('http://localhost:3001/categories', {
-    cache: 'no-store', // Garante que os dados sejam sempre os mais recentes.
+// A função de busca agora aceita parâmetros de paginação
+async function getPaginatedCategories(params: URLSearchParams) {
+  const response = await fetch(`http://localhost:3001/categories?${params.toString()}`, {
+    cache: 'no-store',
   });
-
   if (!response.ok) {
-    // Se a busca falhar, lançamos um erro.
-    throw new Error('Falha ao buscar categorias');
+    return { data: [], total: 0 };
   }
-
   return response.json();
 }
 
-// Este é o componente da página.
-// Ele primeiro espera a função getCategories() terminar.
-export default async function CategoriesManagementPage() {
-  const categories = await getCategories();
+export default async function CategoriesManagementPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
+  // Aguarda os parâmetros resolverem
+  const resolvedParams = await searchParams;
 
-  // Depois, ele renderiza o componente cliente, passando os dados buscados como props.
-  return <CategoriesPageClient categories={categories} />;
+  const params = new URLSearchParams();
+  const page = Array.isArray(resolvedParams.page)
+    ? resolvedParams.page[0]
+    : resolvedParams.page || '1';
+
+  params.append('page', String(page));
+  params.append('limit', '10');
+
+  const paginatedCategories = await getPaginatedCategories(params);
+
+  return (
+    <CategoriesPageClient
+      initialCategories={paginatedCategories.data}
+      totalCategories={paginatedCategories.total}
+    />
+  );
 }

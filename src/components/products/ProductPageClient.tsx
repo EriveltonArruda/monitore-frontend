@@ -7,6 +7,7 @@ import { ProductFormModal } from './ProductFormModal';
 import { DeleteConfirmationModal } from '../DeleteConfirmationModal';
 import { Pagination } from '../Pagination';
 
+
 // Tipos para os dados do componente
 type Category = { id: number; name: string; };
 type Supplier = { id: number; name: string; };

@@ -1,10 +1,12 @@
+// Este Client Component agora tem toda a lógica para os modais e a paginação.
 "use client";
 
+import React, { useState } from 'react';
 import { PlusCircle, Pencil, Trash2 } from 'lucide-react';
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { CategoryFormModal } from './CategoryFormModal';
 import { DeleteConfirmationModal } from '../DeleteConfirmationModal';
+import { Pagination } from '../Pagination';
 
 type Category = {
   id: number;
@@ -12,17 +14,27 @@ type Category = {
 };
 
 type CategoriesPageClientProps = {
-  categories: Category[];
+  initialCategories: Category[];
+  totalCategories: number;
 };
 
-export function CategoriesPageClient({ categories }: CategoriesPageClientProps) {
+const ITEMS_PER_PAGE = 10;
+
+export function CategoriesPageClient({ initialCategories, totalCategories }: CategoriesPageClientProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // Estados para controlar os modais
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+
+  // Estados para saber qual item está sendo editado ou deletado
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [deletingCategory, setDeletingCategory] = useState<Category | null>(null);
+
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // Funções para abrir os modais
   const handleOpenCreateModal = () => {
     setEditingCategory(null);
     setIsFormModalOpen(true);
@@ -38,6 +50,7 @@ export function CategoriesPageClient({ categories }: CategoriesPageClientProps) 
     setIsDeleteModalOpen(true);
   };
 
+  // Função para fechar todos os modais
   const handleCloseModals = () => {
     setIsFormModalOpen(false);
     setIsDeleteModalOpen(false);
@@ -45,6 +58,7 @@ export function CategoriesPageClient({ categories }: CategoriesPageClientProps) 
     setDeletingCategory(null);
   };
 
+  // Função para confirmar e executar a deleção
   const handleDeleteConfirm = async () => {
     if (!deletingCategory) return;
 
@@ -64,6 +78,10 @@ export function CategoriesPageClient({ categories }: CategoriesPageClientProps) 
       setIsDeleting(false);
     }
   };
+
+  // Lógica para a paginação
+  const totalPages = Math.ceil(totalCategories / ITEMS_PER_PAGE);
+  const currentPage = Number(searchParams.get('page')) || 1;
 
   return (
     <>
@@ -104,7 +122,7 @@ export function CategoriesPageClient({ categories }: CategoriesPageClientProps) 
               </tr>
             </thead>
             <tbody>
-              {categories.map((category) => (
+              {initialCategories.map((category) => (
                 <tr key={category.id} className="border-b border-gray-50 last:border-b-0 hover:bg-gray-50">
                   <td className="p-4 font-medium text-gray-800">{category.name}</td>
                   <td className="p-4">
@@ -122,6 +140,12 @@ export function CategoriesPageClient({ categories }: CategoriesPageClientProps) 
             </tbody>
           </table>
         </div>
+
+        {/* Adicionamos o componente de paginação ao final */}
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+        />
       </div>
     </>
   );

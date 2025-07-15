@@ -27,9 +27,9 @@ async function getPaginatedProducts(params: URLSearchParams) {
   if (!response.ok) return { data: [], total: 0 };
   return response.json();
 }
-async function getCategories(): Promise<Category[]> {
+async function getCategories(): Promise<{ data: Category[]; total: number }> {
   const res = await fetch('http://localhost:3001/categories', { cache: 'no-store' });
-  if (!res.ok) return [];
+  if (!res.ok) return { data: [], total: 0 };
   return res.json();
 }
 async function getSuppliers(): Promise<Supplier[]> {
@@ -73,7 +73,7 @@ export default async function ProductsPage({
     <ProductPageClient
       products={paginatedProducts.data}
       totalProducts={paginatedProducts.total}
-      categories={categories}
+      categories={categories.data}
       suppliers={suppliers}
     />
   );
