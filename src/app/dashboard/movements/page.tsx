@@ -57,10 +57,12 @@ async function getSuppliers(): Promise<Supplier[]> {
 export default async function MovementsPage({
   searchParams,
 }: {
-  searchParams: { [key: string]: string | string[] | undefined };
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
+  const resolvedSearchParams = await searchParams;
+
   const params = new URLSearchParams();
-  const page = searchParams['page'] ?? '1';
+  const page = resolvedSearchParams['page'] ?? '1';
   params.append('page', String(page));
   params.append('limit', '10'); // Limite de 10 por página
 
