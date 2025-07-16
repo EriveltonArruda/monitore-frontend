@@ -1,32 +1,43 @@
-// Este é o Server Component. Ele busca os dados e os passa para o cliente.
-
 import { AccountsPayableClient } from '@/components/accounts-payable/AccountsPayableClient';
 
-// Definimos o tipo de dados que esperamos da nossa API.
 type AccountPayable = {
   id: number;
   name: string;
   category: string;
   value: number;
-  dueDate: string; // A data virá como string no formato ISO
+  dueDate: string;
   status: string;
 };
 
-// Função para buscar os dados do nosso backend.
-async function getAccounts(): Promise<AccountPayable[]> {
-  const response = await fetch('http://localhost:3001/accounts-payable', {
-    cache: 'no-store', // Sempre buscar os dados mais recentes.
+// A função de busca agora aceita parâmetros de paginação
+async function getPaginatedAccounts(params: URLSearchParams) {
+  const response = await fetch(`http://localhost:3001/accounts-payable?${params.toString()}`, {
+    cache: 'no-store',
   });
-
   if (!response.ok) {
-    throw new Error('Falha ao buscar contas a pagar');
+    return { data: [], total: 0 };
   }
-
   return response.json();
 }
 
-// O Server Component busca os dados e os passa para o Client Component.
-export default async function AccountsPayablePage() {
-  const accounts = await getAccounts();
-  return <AccountsPayableClient initialAccounts={accounts} />;
+export default async function AccountsPayablePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
+  const resolvedSearchParams = await searchParams;
+
+  const params = new URLSearchParams();
+  const page = resolvedSearchParams['page'] ?? '1';
+  params.append('page', String(page));
+  params.append('limit', '10');
+
+  const paginatedAccounts = await getPaginatedAccounts(params);
+
+  return (
+    <AccountsPayableClient
+      initialAccounts={paginatedAccounts.data}
+      totalAccounts={paginatedAccounts.total}
+    />
+  );
 }
