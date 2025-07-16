@@ -5,12 +5,10 @@ import { PlusCircle, Pencil, Trash2 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { AccountFormModal } from './AccountFormModal';
 import { DeleteConfirmationModal } from '../DeleteConfirmationModal';
-import { Pagination } from '../Pagination'; // Reutilizando nosso componente de paginação
+import { Pagination } from '../Pagination';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
-// --- DEFINIÇÃO DE TIPOS ---
-// Define o "contrato" dos dados que este componente espera receber.
 type AccountPayable = {
   id: number;
   name: string;
@@ -31,17 +29,27 @@ export function AccountsPayableClient({ initialAccounts, totalAccounts }: Accoun
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // --- Gerenciamento de Estado para os Modais ---
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [editingAccount, setEditingAccount] = useState<AccountPayable | null>(null);
   const [deletingAccount, setDeletingAccount] = useState<AccountPayable | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // --- Funções para Abrir e Fechar os Modais ---
-  const handleOpenCreateModal = () => { setEditingAccount(null); setIsFormModalOpen(true); };
-  const handleOpenEditModal = (account: AccountPayable) => { setEditingAccount(account); setIsFormModalOpen(true); };
-  const handleOpenDeleteModal = (account: AccountPayable) => { setDeletingAccount(account); setIsDeleteModalOpen(true); };
+  const handleOpenCreateModal = () => {
+    setEditingAccount(null);
+    setIsFormModalOpen(true);
+  };
+
+  const handleOpenEditModal = (account: AccountPayable) => {
+    setEditingAccount(account);
+    setIsFormModalOpen(true);
+  };
+
+  const handleOpenDeleteModal = (account: AccountPayable) => {
+    setDeletingAccount(account);
+    setIsDeleteModalOpen(true);
+  };
+
   const handleCloseModals = () => {
     setIsFormModalOpen(false);
     setIsDeleteModalOpen(false);
@@ -49,42 +57,96 @@ export function AccountsPayableClient({ initialAccounts, totalAccounts }: Accoun
     setDeletingAccount(null);
   };
 
-  // --- Função para Deletar uma Conta ---
   const handleDeleteConfirm = async () => {
     if (!deletingAccount) return;
     setIsDeleting(true);
     try {
-      // Futuramente, adicionaremos o token de autenticação aqui.
-      await fetch(`http://localhost:3001/accounts-payable/${deletingAccount.id}`, { method: 'DELETE' });
+      await fetch(`http://localhost:3001/accounts-payable/${deletingAccount.id}`, {
+        method: 'DELETE',
+      });
       router.refresh();
       handleCloseModals();
     } catch (error) {
-      alert('Ocorreu um erro ao deletar a conta.');
+      alert('Erro ao deletar a conta.');
     } finally {
       setIsDeleting(false);
     }
   };
 
-  // --- Funções de Estilização e Paginação ---
   const getStatusClass = (status: string) => {
     switch (status) {
-      case 'PAGO': return 'bg-green-100 text-green-700';
-      case 'VENCIDO': return 'bg-red-100 text-red-700';
-      default: return 'bg-yellow-100 text-yellow-700';
+      case 'PAGO':
+        return 'bg-green-100 text-green-700';
+      case 'VENCIDO':
+        return 'bg-red-100 text-red-700';
+      default:
+        return 'bg-yellow-100 text-yellow-700';
     }
   };
 
   const formatStatusText = (status: string) => {
-    const text = status.replace('_', ' ');
-    return text.charAt(0).toUpperCase() + text.slice(1).toLowerCase();
+    return status
+      .toLowerCase()
+      .replace(/_/g, ' ')
+      .replace(/\b\w/g, (char) => char.toUpperCase());
   };
 
   const totalPages = Math.ceil(totalAccounts / ITEMS_PER_PAGE);
   const currentPage = Number(searchParams.get('page')) || 1;
 
+  // Filtros
+  const month = searchParams.get('month') || '';
+  const year = searchParams.get('year') || '';
+
+  const handleMonthChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const params = new URLSearchParams(searchParams.toString());
+    const selectedMonth = e.target.value;
+    if (selectedMonth) {
+      params.set('month', selectedMonth);
+    } else {
+      params.delete('month');
+    }
+    params.set('page', '1');
+    router.push(`?${params.toString()}`);
+  };
+
+  const handleYearChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const params = new URLSearchParams(searchParams.toString());
+    const selectedYear = e.target.value;
+    if (selectedYear) {
+      params.set('year', selectedYear);
+    } else {
+      params.delete('year');
+    }
+    params.set('page', '1');
+    router.push(`?${params.toString()}`);
+  };
+
+  const monthOptions = [
+    { value: '', label: 'Todos os meses' },
+    { value: '1', label: 'Janeiro' },
+    { value: '2', label: 'Fevereiro' },
+    { value: '3', label: 'Março' },
+    { value: '4', label: 'Abril' },
+    { value: '5', label: 'Maio' },
+    { value: '6', label: 'Junho' },
+    { value: '7', label: 'Julho' },
+    { value: '8', label: 'Agosto' },
+    { value: '9', label: 'Setembro' },
+    { value: '10', label: 'Outubro' },
+    { value: '11', label: 'Novembro' },
+    { value: '12', label: 'Dezembro' },
+  ];
+
+  const yearOptions = [
+    { value: '', label: 'Todos os anos' },
+    { value: '2023', label: '2023' },
+    { value: '2024', label: '2024' },
+    { value: '2025', label: '2025' },
+  ];
+
   return (
     <>
-      {/* Renderização condicional dos modais */}
       {isFormModalOpen && (
         <AccountFormModal
           onClose={handleCloseModals}
@@ -100,18 +162,47 @@ export function AccountsPayableClient({ initialAccounts, totalAccounts }: Accoun
         />
       )}
 
-      {/* Layout Principal da Página */}
       <div className="max-w-7xl mx-auto">
         <div className="flex justify-between items-center mb-8">
           <div>
             <h1 className="text-3xl font-bold text-gray-800">Contas a Pagar</h1>
             <p className="text-sm text-gray-500">Gerencie suas despesas e contas a pagar</p>
           </div>
-          <button onClick={handleOpenCreateModal} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2">
+          <button
+            onClick={handleOpenCreateModal}
+            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2"
+          >
             <PlusCircle size={20} />
             <span>Nova Conta</span>
           </button>
         </div>
+
+        {/* Filtros */}
+        <div className="flex gap-4 mb-6">
+          <select title="Selecione o mês"
+            value={month}
+            onChange={handleMonthChange}
+            className="border rounded-lg px-3 py-2"
+          >
+            {monthOptions.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+          <select title="Selecione o ano"
+            value={year}
+            onChange={handleYearChange}
+            className="border rounded-lg px-3 py-2"
+          >
+            {yearOptions.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
         <div className="bg-white p-4 rounded-xl shadow-sm">
           <table className="w-full table-auto">
             <thead className="text-left border-b-2 border-gray-100">
@@ -129,17 +220,36 @@ export function AccountsPayableClient({ initialAccounts, totalAccounts }: Accoun
                 <tr key={account.id} className="border-b hover:bg-gray-50 last:border-b-0">
                   <td className="p-4 font-medium text-gray-800">{account.name}</td>
                   <td className="p-4 text-gray-600">{account.category}</td>
-                  <td className="p-4 text-gray-600">{account.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
-                  <td className="p-4 text-gray-600">{format(new Date(account.dueDate), 'dd/MM/yyyy', { locale: ptBR })}</td>
+                  <td className="p-4 text-gray-600">
+                    {account.value.toLocaleString('pt-BR', {
+                      style: 'currency',
+                      currency: 'BRL',
+                    })}
+                  </td>
+                  <td className="p-4 text-gray-600">
+                    {format(new Date(account.dueDate), 'dd/MM/yyyy', { locale: ptBR })}
+                  </td>
                   <td className="p-4">
-                    <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${getStatusClass(account.status)}`}>
+                    <span
+                      className={`text-xs font-semibold px-2.5 py-1 rounded-full ${getStatusClass(account.status)}`}
+                    >
                       {formatStatusText(account.status)}
                     </span>
                   </td>
                   <td className="p-4">
                     <div className="flex gap-4">
-                      <button onClick={() => handleOpenEditModal(account)} className="text-gray-400 hover:text-blue-600"><Pencil size={18} /></button>
-                      <button onClick={() => handleOpenDeleteModal(account)} className="text-gray-400 hover:text-red-600"><Trash2 size={18} /></button>
+                      <button
+                        onClick={() => handleOpenEditModal(account)}
+                        className="text-gray-400 hover:text-blue-600"
+                      >
+                        <Pencil size={18} />
+                      </button>
+                      <button
+                        onClick={() => handleOpenDeleteModal(account)}
+                        className="text-gray-400 hover:text-red-600"
+                      >
+                        <Trash2 size={18} />
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -148,11 +258,7 @@ export function AccountsPayableClient({ initialAccounts, totalAccounts }: Accoun
           </table>
         </div>
 
-        {/* Componente de Paginação */}
-        <Pagination
-          currentPage={currentPage}
-          totalPages={totalPages}
-        />
+        <Pagination currentPage={currentPage} totalPages={totalPages} />
       </div>
     </>
   );

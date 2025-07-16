@@ -9,7 +9,6 @@ type AccountPayable = {
   status: string;
 };
 
-// A função de busca agora aceita parâmetros de paginação
 async function getPaginatedAccounts(params: URLSearchParams) {
   const response = await fetch(`http://localhost:3001/accounts-payable?${params.toString()}`, {
     cache: 'no-store',
@@ -23,14 +22,26 @@ async function getPaginatedAccounts(params: URLSearchParams) {
 export default async function AccountsPayablePage({
   searchParams,
 }: {
-  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+  searchParams: { [key: string]: string | string[] | undefined };
 }) {
   const resolvedSearchParams = await searchParams;
 
   const params = new URLSearchParams();
   const page = resolvedSearchParams['page'] ?? '1';
+
+  // 🗓️ Captura mês/ano atual caso não venha na URL
+  const now = new Date();
+  const currentMonth = String(now.getMonth() + 1).padStart(2, '0'); // '07'
+  const currentYear = String(now.getFullYear()); // '2025'
+
+  const month = resolvedSearchParams['month'] ?? currentMonth;
+  const year = resolvedSearchParams['year'] ?? currentYear;
+
+  // Adiciona os parâmetros
   params.append('page', String(page));
   params.append('limit', '10');
+  if (month) params.append('month', String(month));
+  if (year) params.append('year', String(year));
 
   const paginatedAccounts = await getPaginatedAccounts(params);
 
