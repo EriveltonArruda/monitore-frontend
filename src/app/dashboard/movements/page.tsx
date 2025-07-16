@@ -1,16 +1,15 @@
+// Este é o Server Component. Ele busca os dados e os passa para o cliente.
+
 import { MovementsPageClient } from "@/components/movements/MovementsPageClient";
 
 // --- DEFINIÇÃO DE TIPOS ---
-// O tipo Product agora inclui o salePrice, necessário para o modal
+// Definimos os tipos de dados que esperamos da nossa API.
 type Product = {
   id: number;
   name: string;
   salePrice: number;
 };
 
-// CORREÇÃO APLICADA AQUI:
-// O tipo Movement agora inclui todos os campos que o backend envia
-// e que os componentes cliente esperam receber.
 type Movement = {
   id: number;
   type: string;
@@ -30,42 +29,51 @@ type Supplier = {
 };
 
 // --- FUNÇÕES DE BUSCA DE DADOS ---
-async function getMovements(): Promise<Movement[]> {
-  const res = await fetch('http://localhost:3001/stock-movements', { cache: 'no-store' });
-  if (!res.ok) throw new Error('Falha ao buscar movimentações');
+// Estas funções rodam no servidor antes de a página ser renderizada.
+
+// Busca as movimentações de forma paginada.
+async function getPaginatedMovements(params: URLSearchParams) {
+  const res = await fetch(`http://localhost:3001/stock-movements?${params.toString()}`, { cache: 'no-store' });
+  if (!res.ok) return { data: [], total: 0 };
   return res.json();
 }
 
-// A função agora espera um objeto { data, total } e retorna apenas o array 'data'.
+// Busca a lista COMPLETA de produtos para o dropdown do modal.
 async function getProducts(): Promise<Product[]> {
-  const res = await fetch('http://localhost:3001/products', { cache: 'no-store' });
-  if (!res.ok) {
-    console.error("Falha ao buscar produtos");
-    return [];
-  }
-  const paginatedResult = await res.json();
-  return paginatedResult.data || []; // Retorna o array de dentro do objeto, ou um array vazio
+  const res = await fetch('http://localhost:3001/products/all', { cache: 'no-store' });
+  if (!res.ok) return [];
+  return res.json();
 }
 
+// Busca a lista COMPLETA de fornecedores para o dropdown do modal.
 async function getSuppliers(): Promise<Supplier[]> {
-  const res = await fetch('http://localhost:3001/suppliers', { cache: 'no-store' });
+  const res = await fetch('http://localhost:3001/suppliers/all', { cache: 'no-store' });
   if (!res.ok) return [];
   return res.json();
 }
 
 // --- O COMPONENTE DA PÁGINA ---
-export default async function MovementsPage() {
-  // Buscamos todos os dados necessários em paralelo
-  const [movements, products, suppliers] = await Promise.all([
-    getMovements(),
+// Ele lê os parâmetros da URL, busca os dados e os entrega para o componente cliente.
+export default async function MovementsPage({
+  searchParams,
+}: {
+  searchParams: { [key: string]: string | string[] | undefined };
+}) {
+  const params = new URLSearchParams();
+  const page = searchParams['page'] ?? '1';
+  params.append('page', String(page));
+  params.append('limit', '10'); // Limite de 10 por página
+
+  const [paginatedMovements, products, suppliers] = await Promise.all([
+    getPaginatedMovements(params),
     getProducts(),
     getSuppliers(),
   ]);
 
-  // Passamos os dados corretos para o componente cliente
   return (
     <MovementsPageClient
-      initialMovements={movements}
+      initialMovements={paginatedMovements.data}
+      totalMovements={paginatedMovements.total}
       products={products}
       suppliers={suppliers}
     />

@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from 'react';
+import React, { useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { PlusCircle, ArrowUpRight, ArrowDownLeft, Wrench } from 'lucide-react';
 import { MovementFormModal } from './MovementFormModal';
+import { Pagination } from '../Pagination'; // Importamos nosso componente padrão
 
 // --- DEFINIÇÃO DE TIPOS ---
 type Product = { id: number; name: string; salePrice: number; };
@@ -17,12 +19,20 @@ type Movement = {
 
 type MovementsPageClientProps = {
   initialMovements: Movement[];
+  totalMovements: number; // Nova prop para o total de itens
   products: Product[];
   suppliers: Supplier[];
 };
 
-export function MovementsPageClient({ initialMovements, products, suppliers }: MovementsPageClientProps) {
+const ITEMS_PER_PAGE = 10;
+
+export function MovementsPageClient({ initialMovements, totalMovements, products, suppliers }: MovementsPageClientProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const searchParams = useSearchParams();
+
+  // Lógica para a paginação
+  const totalPages = Math.ceil(totalMovements / ITEMS_PER_PAGE);
+  const currentPage = Number(searchParams.get('page')) || 1;
 
   // Função para formatar moeda
   const formatCurrency = (value: number | null) => {
@@ -57,7 +67,7 @@ export function MovementsPageClient({ initialMovements, products, suppliers }: M
       {/* Histórico de Movimentações */}
       <div className="bg-white rounded-xl shadow-sm">
         <div className="p-6 border-b border-gray-200">
-          <h2 className="text-xl font-bold text-gray-800">Histórico de Movimentações ({initialMovements.length})</h2>
+          <h2 className="text-xl font-bold text-gray-800">Histórico de Movimentações ({totalMovements})</h2>
         </div>
         <div className="p-6 space-y-4">
           {initialMovements.map(mov => {
@@ -100,14 +110,17 @@ export function MovementsPageClient({ initialMovements, products, suppliers }: M
           {initialMovements.length === 0 && <p className="text-center text-gray-500 py-8">Nenhuma movimentação registrada.</p>}
         </div>
       </div>
+
+      {/* Componente de Paginação Adicionado */}
+      <Pagination currentPage={currentPage} totalPages={totalPages} />
     </div>
   );
 }
 
 // --- COMPONENTES AUXILIARES PARA ESTILIZAÇÃO ---
+// Preservando suas customizações completas
 
 const MovementIcon = ({ type }: { type: string }) => {
-  // CORREÇÃO: Adicionamos a assinatura de índice [key: string] para o objeto styles.
   const styles: { [key: string]: { icon: React.ElementType; color: string } } = {
     ENTRADA: { icon: ArrowUpRight, color: 'text-green-600 bg-green-100' },
     SAIDA: { icon: ArrowDownLeft, color: 'text-red-600 bg-red-100' },
@@ -125,7 +138,6 @@ const MovementIcon = ({ type }: { type: string }) => {
 }
 
 const MovementTypeTag = ({ type }: { type: string }) => {
-  // CORREÇÃO: Adicionamos a assinatura de índice [key: string] para o objeto styles.
   const styles: { [key: string]: { color: string; label: string } } = {
     ENTRADA: { color: 'text-green-700 bg-green-100', label: 'Entrada' },
     SAIDA: { color: 'text-red-700 bg-red-100', label: 'Saída' },
