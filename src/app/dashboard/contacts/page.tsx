@@ -1,6 +1,5 @@
 import { ContactsPageClient } from '@/components/contacts/ContactsPageClient';
 
-// Definimos o tipo de dados que esperamos da nossa API.
 type Contact = {
   id: number;
   name: string;
@@ -10,21 +9,35 @@ type Contact = {
   type: string;
 };
 
-// Função para buscar os dados do nosso backend.
-async function getContacts(): Promise<Contact[]> {
-  const response = await fetch('http://localhost:3001/contacts', {
-    cache: 'no-store', // Sempre buscar os dados mais recentes.
+// A função de busca agora aceita parâmetros de paginação
+async function getPaginatedContacts(params: URLSearchParams) {
+  const response = await fetch(`http://localhost:3001/contacts?${params.toString()}`, {
+    cache: 'no-store',
   });
-
   if (!response.ok) {
-    throw new Error('Falha ao buscar contatos');
+    return { data: [], total: 0 };
   }
-
   return response.json();
 }
 
-// O Server Component busca os dados e os passa para o Client Component.
-export default async function ContactsPage() {
-  const contacts = await getContacts();
-  return <ContactsPageClient initialContacts={contacts} />;
+export default async function ContactsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
+  const resolvedSearchParams = await searchParams;
+
+  const params = new URLSearchParams();
+  const page = resolvedSearchParams['page'] ?? '1';
+  params.append('page', String(page));
+  params.append('limit', '10'); // Limite de 10 por página
+
+  const paginatedContacts = await getPaginatedContacts(params);
+
+  return (
+    <ContactsPageClient
+      initialContacts={paginatedContacts.data}
+      totalContacts={paginatedContacts.total}
+    />
+  );
 }
