@@ -22,22 +22,25 @@ type Product = {
 };
 
 // Funções de busca de dados...
+// A função de busca de produtos continua paginada
 async function getPaginatedProducts(params: URLSearchParams) {
   const response = await fetch(`http://localhost:3001/products?${params.toString()}`, { cache: 'no-store' });
   if (!response.ok) return { data: [], total: 0 };
   return response.json();
 }
-async function getCategories(): Promise<{ data: Category[]; total: number }> {
-  const res = await fetch('http://localhost:3001/categories', { cache: 'no-store' });
-  if (!res.ok) return { data: [], total: 0 };
+
+// CORREÇÃO: Estas funções agora buscam as listas completas
+async function getCategories(): Promise<Category[]> {
+  const res = await fetch('http://localhost:3001/categories/all', { cache: 'no-store' });
+  if (!res.ok) return [];
   return res.json();
 }
 
+// CORREÇÃO APLICADA AQUI: A função agora busca a lista completa de fornecedores
 async function getSuppliers(): Promise<Supplier[]> {
-  const res = await fetch('http://localhost:3001/suppliers', { cache: 'no-store' });
+  const res = await fetch('http://localhost:3001/suppliers/all', { cache: 'no-store' });
   if (!res.ok) return [];
-  const result = await res.json();
-  return result.data || []; // ✅ retorna sempre um array, mesmo se for undefined
+  return res.json();
 }
 
 export default async function ProductsPage({
@@ -75,7 +78,7 @@ export default async function ProductsPage({
     <ProductPageClient
       products={paginatedProducts.data}
       totalProducts={paginatedProducts.total}
-      categories={categories.data}
+      categories={categories}
       suppliers={suppliers}
     />
   );
