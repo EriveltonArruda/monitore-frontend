@@ -1,7 +1,9 @@
-import { cookies } from 'next/headers'; // Importa a função para ler cookies no servidor
+// Este é o Server Component. Sua única tarefa é buscar os dados autenticados.
+
+import { cookies } from 'next/headers';
 import { UsersPageClient } from '@/components/users/UsersPageClient';
 
-// Definimos o tipo de dados que esperamos da nossa API.
+// Define o "contrato" dos dados que esperamos da API.
 type User = {
   id: number;
   name: string;
@@ -9,36 +11,42 @@ type User = {
 };
 
 // A função de busca agora precisa do token para se autenticar.
-async function getUsers(token: string): Promise<User[]> {
-  const response = await fetch('http://localhost:3001/users', {
-    headers: {
-      // Enviamos o token no cabeçalho da requisição
-      Authorization: `Bearer ${token}`,
-    },
+async function getPaginatedUsers(params: URLSearchParams, token: string) {
+  const response = await fetch(`http://localhost:3001/users?${params.toString()}`, {
+    headers: { Authorization: `Bearer ${token}` },
     cache: 'no-store',
   });
-
   if (!response.ok) {
-    // Se o token for inválido ou expirado, o backend retornará 401,
-    // e o middleware cuidará do redirecionamento.
-    console.error('Falha ao buscar usuários, acesso não autorizado.');
-    return [];
+    return { data: [], total: 0 };
   }
-
   return response.json();
 }
 
-// O Server Component busca os dados e os passa para o Client Component.
-export default async function UsersManagementPage() {
-  // CORREÇÃO APLICADA AQUI:
-  // A função cookies() pode se comportar de forma assíncrona em alguns contextos.
-  // Adicionamos 'await' para garantir que esperamos a resolução dos cookies.
+export default async function UsersManagementPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
+  // 1. Lemos o token dos cookies no lado do servidor
+  const resolvedSearchParams = await searchParams;
   const cookieStore = await cookies();
   const token = cookieStore.get('auth_token')?.value;
 
-  // Se não houver token, o middleware já teria redirecionado,
-  // mas por segurança, buscamos apenas se o token existir.
-  const users = token ? await getUsers(token) : [];
+  // 2. Preparamos os parâmetros de paginação para a API.
+  const params = new URLSearchParams();
+  const page = resolvedSearchParams['page'] ?? '1';
+  params.append('page', String(page));
+  params.append('limit', '10');
 
-  return <UsersPageClient initialUsers={users} />;
+  // 3. Buscamos os dados apenas se o token existir.
+  const paginatedUsers = token
+    ? await getPaginatedUsers(params, token)
+    : { data: [], total: 0 };
+
+  return (
+    <UsersPageClient
+      initialUsers={paginatedUsers.data}
+      totalUsers={paginatedUsers.total}
+    />
+  );
 }

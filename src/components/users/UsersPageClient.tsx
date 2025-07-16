@@ -1,11 +1,13 @@
+// Este é o Client Component. Ele gerencia a interatividade da página.
 "use client";
 
 import React, { useState } from 'react';
-import { PlusCircle, Trash2, KeyRound } from 'lucide-react'; // Importamos o novo ícone
-import { useRouter } from 'next/navigation';
+import { PlusCircle, Trash2, KeyRound } from 'lucide-react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { UserFormModal } from './UserFormModal';
 import { DeleteConfirmationModal } from '../DeleteConfirmationModal';
-import { ChangePasswordModal } from './ChangePasswordModal'; // Importamos o novo modal
+import { ChangePasswordModal } from './ChangePasswordModal';
+import { Pagination } from '../Pagination'; // Reutilizando nosso componente!
 import Cookies from 'js-cookie';
 
 type User = {
@@ -16,54 +18,48 @@ type User = {
 
 type UsersPageClientProps = {
   initialUsers: User[];
+  totalUsers: number;
 };
 
-export function UsersPageClient({ initialUsers }: UsersPageClientProps) {
+const ITEMS_PER_PAGE = 10;
+
+export function UsersPageClient({ initialUsers, totalUsers }: UsersPageClientProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // Estados para controlar qual modal está aberto.
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [isChangePasswordModalOpen, setIsChangePasswordModalOpen] = useState(false); // Novo estado
+  const [isChangePasswordModalOpen, setIsChangePasswordModalOpen] = useState(false);
 
+  // Estados para guardar os dados do usuário para cada ação.
   const [deletingUser, setDeletingUser] = useState<User | null>(null);
-  const [changingPasswordForUser, setChangingPasswordForUser] = useState<User | null>(null); // Novo estado
+  const [changingPasswordForUser, setChangingPasswordForUser] = useState<User | null>(null);
 
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // Funções para abrir os modais, passando os dados do usuário selecionado.
   const handleOpenDeleteModal = (user: User) => { setDeletingUser(user); setIsDeleteModalOpen(true); };
-
-  // Nova função para abrir o modal de alterar senha
-  const handleOpenChangePasswordModal = (user: User) => {
-    setChangingPasswordForUser(user);
-    setIsChangePasswordModalOpen(true);
-  };
-
+  const handleOpenChangePasswordModal = (user: User) => { setChangingPasswordForUser(user); setIsChangePasswordModalOpen(true); };
   const handleCloseModals = () => {
     setIsFormModalOpen(false);
     setIsDeleteModalOpen(false);
     setIsChangePasswordModalOpen(false);
-    setDeletingUser(null);
-    setChangingPasswordForUser(null);
   };
 
+  // Função para confirmar e executar a deleção.
   const handleDeleteConfirm = async () => {
     if (!deletingUser) return;
     setIsDeleting(true);
 
-    const token = Cookies.get('auth_token'); // Pega o token para a requisição
-
+    // Pega o token dos cookies do navegador para se autenticar.
+    const token = Cookies.get('auth_token');
     try {
-      const response = await fetch(`http://localhost:3001/users/${deletingUser.id}`, {
+      await fetch(`http://localhost:3001/users/${deletingUser.id}`, {
         method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+        headers: { 'Authorization': `Bearer ${token}` }
       });
-
-      if (!response.ok) {
-        throw new Error('Falha ao deletar usuário.');
-      }
-
-      router.refresh();
+      router.refresh(); // Atualiza a página
       handleCloseModals();
     } catch (error) {
       alert('Ocorreu um erro ao deletar o usuário.');
@@ -72,26 +68,23 @@ export function UsersPageClient({ initialUsers }: UsersPageClientProps) {
     }
   };
 
+  // Lógica para calcular a paginação
+  const totalPages = Math.ceil(totalUsers / ITEMS_PER_PAGE);
+  const currentPage = Number(searchParams.get('page')) || 1;
+
   return (
     <>
+      {/* Renderização condicional dos modais */}
       {isFormModalOpen && <UserFormModal onClose={handleCloseModals} />}
       {isDeleteModalOpen && deletingUser && (
-        <DeleteConfirmationModal
-          itemName={deletingUser.name}
-          onConfirm={handleDeleteConfirm}
-          onClose={handleCloseModals}
-          isDeleting={isDeleting}
-        />
+        <DeleteConfirmationModal itemName={deletingUser.name} onConfirm={handleDeleteConfirm} onClose={handleCloseModals} isDeleting={isDeleting} />
       )}
-      {/* Renderização condicional do novo modal */}
       {isChangePasswordModalOpen && changingPasswordForUser && (
-        <ChangePasswordModal
-          onClose={handleCloseModals}
-          userId={changingPasswordForUser.id}
-        />
+        <ChangePasswordModal onClose={handleCloseModals} userId={changingPasswordForUser.id} />
       )}
 
       <div className="max-w-7xl mx-auto">
+        {/* Cabeçalho da página */}
         <div className="flex justify-between items-center mb-8">
           <div>
             <h1 className="text-3xl font-bold">Gerenciar Usuários</h1>
@@ -102,6 +95,8 @@ export function UsersPageClient({ initialUsers }: UsersPageClientProps) {
             <span>Novo Usuário</span>
           </button>
         </div>
+
+        {/* Tabela que exibe os usuários */}
         <div className="bg-white p-4 rounded-xl shadow-sm">
           <table className="w-full table-auto">
             <thead className="text-left border-b-2 border-gray-100">
@@ -118,7 +113,6 @@ export function UsersPageClient({ initialUsers }: UsersPageClientProps) {
                   <td className="p-4 text-gray-600">{user.email}</td>
                   <td className="p-4">
                     <div className="flex gap-4">
-                      {/* Novo botão de alterar senha */}
                       <button onClick={() => handleOpenChangePasswordModal(user)} className="text-gray-400 hover:text-blue-600">
                         <KeyRound size={18} />
                       </button>
@@ -132,6 +126,9 @@ export function UsersPageClient({ initialUsers }: UsersPageClientProps) {
             </tbody>
           </table>
         </div>
+
+        {/* Componente de paginação */}
+        <Pagination currentPage={currentPage} totalPages={totalPages} />
       </div>
     </>
   );
