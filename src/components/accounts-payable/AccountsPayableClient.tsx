@@ -16,6 +16,9 @@ type AccountPayable = {
   value: number;
   dueDate: string;
   status: string;
+  installmentType?: string;        // UNICA ou PARCELADO
+  installments?: number | null;    // total de parcelas
+  currentInstallment?: number | null; // parcela atual
 };
 
 type AccountsPayableClientProps = {
@@ -94,7 +97,6 @@ export function AccountsPayableClient({ initialAccounts, totalAccounts }: Accoun
   const totalPages = Math.ceil(totalAccounts / ITEMS_PER_PAGE);
   const currentPage = Number(searchParams.get('page')) || 1;
 
-  // Filtros
   const month = searchParams.get('month') || '';
   const year = searchParams.get('year') || '';
 
@@ -148,10 +150,7 @@ export function AccountsPayableClient({ initialAccounts, totalAccounts }: Accoun
   return (
     <>
       {isFormModalOpen && (
-        <AccountFormModal
-          onClose={handleCloseModals}
-          accountToEdit={editingAccount}
-        />
+        <AccountFormModal onClose={handleCloseModals} accountToEdit={editingAccount} />
       )}
       {isDeleteModalOpen && deletingAccount && (
         <DeleteConfirmationModal
@@ -177,9 +176,9 @@ export function AccountsPayableClient({ initialAccounts, totalAccounts }: Accoun
           </button>
         </div>
 
-        {/* Filtros */}
         <div className="flex gap-4 mb-6">
-          <select title="Selecione o mês"
+          <select
+            title="Selecione o mês"
             value={month}
             onChange={handleMonthChange}
             className="border rounded-lg px-3 py-2"
@@ -190,7 +189,8 @@ export function AccountsPayableClient({ initialAccounts, totalAccounts }: Accoun
               </option>
             ))}
           </select>
-          <select title="Selecione o ano"
+          <select
+            title="Selecione o ano"
             value={year}
             onChange={handleYearChange}
             className="border rounded-lg px-3 py-2"
@@ -216,44 +216,66 @@ export function AccountsPayableClient({ initialAccounts, totalAccounts }: Accoun
               </tr>
             </thead>
             <tbody>
-              {initialAccounts.map((account) => (
-                <tr key={account.id} className="border-b hover:bg-gray-50 last:border-b-0">
-                  <td className="p-4 font-medium text-gray-800">{account.name}</td>
-                  <td className="p-4 text-gray-600">{account.category}</td>
-                  <td className="p-4 text-gray-600">
-                    {account.value.toLocaleString('pt-BR', {
-                      style: 'currency',
-                      currency: 'BRL',
-                    })}
-                  </td>
-                  <td className="p-4 text-gray-600">
-                    {format(new Date(account.dueDate), 'dd/MM/yyyy', { locale: ptBR })}
-                  </td>
-                  <td className="p-4">
-                    <span
-                      className={`text-xs font-semibold px-2.5 py-1 rounded-full ${getStatusClass(account.status)}`}
-                    >
-                      {formatStatusText(account.status)}
-                    </span>
-                  </td>
-                  <td className="p-4">
-                    <div className="flex gap-4">
-                      <button
-                        onClick={() => handleOpenEditModal(account)}
-                        className="text-gray-400 hover:text-blue-600"
+              {initialAccounts.map((account) => {
+                const isParcelado =
+                  account.installmentType === 'PARCELADO' &&
+                  account.installments &&
+                  account.currentInstallment;
+
+                const installmentLabel = isParcelado
+                  ? `${account.currentInstallment}/${account.installments}`
+                  : 'Única';
+
+                const installmentClass = isParcelado
+                  ? 'bg-green-100 text-green-700'
+                  : 'bg-blue-100 text-blue-700';
+
+                return (
+                  <tr key={account.id} className="border-b hover:bg-gray-50 last:border-b-0">
+                    <td className="p-4 font-medium text-gray-800">
+                      {account.name}
+                      <span
+                        className={`ml-2 text-xs font-semibold px-2.5 py-0.5 rounded-full ${installmentClass}`}
                       >
-                        <Pencil size={18} />
-                      </button>
-                      <button
-                        onClick={() => handleOpenDeleteModal(account)}
-                        className="text-gray-400 hover:text-red-600"
+                        {installmentLabel}
+                      </span>
+                    </td>
+                    <td className="p-4 text-gray-600">{account.category}</td>
+                    <td className="p-4 text-gray-600">
+                      {account.value.toLocaleString('pt-BR', {
+                        style: 'currency',
+                        currency: 'BRL',
+                      })}
+                    </td>
+                    <td className="p-4 text-gray-600">
+                      {format(new Date(account.dueDate), 'dd/MM/yyyy', { locale: ptBR })}
+                    </td>
+                    <td className="p-4">
+                      <span
+                        className={`text-xs font-semibold px-2.5 py-1 rounded-full ${getStatusClass(account.status)}`}
                       >
-                        <Trash2 size={18} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                        {formatStatusText(account.status)}
+                      </span>
+                    </td>
+                    <td className="p-4">
+                      <div className="flex gap-4">
+                        <button
+                          onClick={() => handleOpenEditModal(account)}
+                          className="text-gray-400 hover:text-blue-600"
+                        >
+                          <Pencil size={18} />
+                        </button>
+                        <button
+                          onClick={() => handleOpenDeleteModal(account)}
+                          className="text-gray-400 hover:text-red-600"
+                        >
+                          <Trash2 size={18} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
