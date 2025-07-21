@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from 'react';
-import { PlusCircle, Pencil, Trash2 } from 'lucide-react';
+import { PlusCircle, Pencil, Trash2, CheckCircle, AlertCircle, XCircle } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { AccountFormModal } from './AccountFormModal';
 import { DeleteConfirmationModal } from '../DeleteConfirmationModal';
@@ -252,8 +252,11 @@ export function AccountsPayableClient({ initialAccounts, totalAccounts }: Accoun
                     </td>
                     <td className="p-4">
                       <span
-                        className={`text-xs font-semibold px-2.5 py-1 rounded-full ${getStatusClass(account.status)}`}
+                        className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${getStatusClass(account.status)}`}
                       >
+                        {account.status === 'PAGO' && <CheckCircle size={14} className="text-green-700" />}
+                        {account.status === 'VENCIDO' && <XCircle size={14} className="text-red-700" />}
+                        {account.status === 'A_PAGAR' && <AlertCircle size={14} className="text-yellow-700" />}
                         {formatStatusText(account.status)}
                       </span>
                     </td>
