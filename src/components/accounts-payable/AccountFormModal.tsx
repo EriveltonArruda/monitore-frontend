@@ -38,6 +38,7 @@ export function AccountFormModal({
     installmentType: 'UNICA',
     installments: '',
     currentInstallment: '',
+    paidAt: '',
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -56,6 +57,7 @@ export function AccountFormModal({
         installmentType: accountToEdit.installmentType || 'UNICA',
         installments: accountToEdit.installments?.toString() || '',
         currentInstallment: accountToEdit.currentInstallment?.toString() || '',
+        paidAt: '', // Não enviado ao backend, apenas exibido
       });
     }
   }, [isEditMode, accountToEdit]);
@@ -69,16 +71,22 @@ export function AccountFormModal({
     setIsSubmitting(true);
     setError(null);
 
-    const dataToSend = {
+    const dataToSend: any = {
       name: formData.name,
       category: formData.category,
       value: parseFloat(String(formData.value)),
-      dueDate: new Date(formData.dueDate),
+      dueDate: new Date(formData.dueDate + 'T00:00:00'),
       status: formData.status,
       installmentType: formData.installmentType,
-      installments: formData.installmentType === 'PARCELADO' ? parseInt(formData.installments) : null,
-      currentInstallment: formData.installmentType === 'PARCELADO' ? parseInt(formData.currentInstallment) : null,
+      installments:
+        formData.installmentType === 'PARCELADO' ? parseInt(formData.installments) : null,
+      currentInstallment:
+        formData.installmentType === 'PARCELADO'
+          ? parseInt(formData.currentInstallment)
+          : null,
     };
+
+    // ⚠️ Não envia paidAt — isso será tratado automaticamente no backend
 
     try {
       let response;
@@ -116,7 +124,9 @@ export function AccountFormModal({
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-xl shadow-lg w-full max-w-lg">
         <div className="flex justify-between items-center p-6 border-b">
-          <h2 className="text-xl font-bold">{isEditMode ? 'Editar Conta' : 'Nova Conta a Pagar'}</h2>
+          <h2 className="text-xl font-bold">
+            {isEditMode ? 'Editar Conta' : 'Nova Conta a Pagar'}
+          </h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
             <X size={24} />
           </button>
@@ -124,29 +134,73 @@ export function AccountFormModal({
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div>
-            <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">Nome da Conta *</label>
-            <input type="text" id="name" value={formData.name} onChange={handleChange} required className="w-full border rounded-md p-2" />
+            <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
+              Nome da Conta *
+            </label>
+            <input
+              type="text"
+              id="name"
+              value={formData.name}
+              onChange={handleChange}
+              required
+              className="w-full border rounded-md p-2"
+            />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label htmlFor="category" className="block text-sm font-medium text-gray-700 mb-1">Categoria *</label>
-              <input type="text" id="category" value={formData.category} onChange={handleChange} required className="w-full border rounded-md p-2" />
+              <label htmlFor="category" className="block text-sm font-medium text-gray-700 mb-1">
+                Categoria *
+              </label>
+              <input
+                type="text"
+                id="category"
+                value={formData.category}
+                onChange={handleChange}
+                required
+                className="w-full border rounded-md p-2"
+              />
             </div>
             <div>
-              <label htmlFor="value" className="block text-sm font-medium text-gray-700 mb-1">Valor *</label>
-              <input type="number" step="0.01" id="value" value={formData.value} onChange={handleChange} required className="w-full border rounded-md p-2" />
+              <label htmlFor="value" className="block text-sm font-medium text-gray-700 mb-1">
+                Valor *
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                id="value"
+                value={formData.value}
+                onChange={handleChange}
+                required
+                className="w-full border rounded-md p-2"
+              />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label htmlFor="dueDate" className="block text-sm font-medium text-gray-700 mb-1">Data de Vencimento *</label>
-              <input type="date" id="dueDate" value={formData.dueDate} onChange={handleChange} required className="w-full border rounded-md p-2" />
+              <label htmlFor="dueDate" className="block text-sm font-medium text-gray-700 mb-1">
+                Data de Vencimento *
+              </label>
+              <input
+                type="date"
+                id="dueDate"
+                value={formData.dueDate}
+                onChange={handleChange}
+                required
+                className="w-full border rounded-md p-2"
+              />
             </div>
             <div>
-              <label htmlFor="status" className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-              <select id="status" value={formData.status} onChange={handleChange} className="w-full border rounded-md p-2 bg-white">
+              <label htmlFor="status" className="block text-sm font-medium text-gray-700 mb-1">
+                Status
+              </label>
+              <select
+                id="status"
+                value={formData.status}
+                onChange={handleChange}
+                className="w-full border rounded-md p-2 bg-white"
+              >
                 <option value="A_PAGAR">A Pagar</option>
                 <option value="PAGO">Pago</option>
                 <option value="VENCIDO">Vencido</option>
@@ -155,8 +209,18 @@ export function AccountFormModal({
           </div>
 
           <div>
-            <label htmlFor="installmentType" className="block text-sm font-medium text-gray-700 mb-1">Tipo de Parcela</label>
-            <select id="installmentType" value={formData.installmentType} onChange={handleChange} className="w-full border rounded-md p-2 bg-white">
+            <label
+              htmlFor="installmentType"
+              className="block text-sm font-medium text-gray-700 mb-1"
+            >
+              Tipo de Parcela
+            </label>
+            <select
+              id="installmentType"
+              value={formData.installmentType}
+              onChange={handleChange}
+              className="w-full border rounded-md p-2 bg-white"
+            >
               <option value="UNICA">Parcela única</option>
               <option value="PARCELADO">Parcelado</option>
             </select>
@@ -165,21 +229,71 @@ export function AccountFormModal({
           {formData.installmentType === 'PARCELADO' && (
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label htmlFor="currentInstallment" className="block text-sm font-medium text-gray-700 mb-1">Parcela Atual</label>
-                <input type="number" id="currentInstallment" value={formData.currentInstallment} onChange={handleChange} required className="w-full border rounded-md p-2" />
+                <label
+                  htmlFor="currentInstallment"
+                  className="block text-sm font-medium text-gray-700 mb-1"
+                >
+                  Parcela Atual
+                </label>
+                <input
+                  type="number"
+                  id="currentInstallment"
+                  value={formData.currentInstallment}
+                  onChange={handleChange}
+                  required
+                  className="w-full border rounded-md p-2"
+                />
               </div>
               <div>
-                <label htmlFor="installments" className="block text-sm font-medium text-gray-700 mb-1">Total de Parcelas</label>
-                <input type="number" id="installments" value={formData.installments} onChange={handleChange} required className="w-full border rounded-md p-2" />
+                <label
+                  htmlFor="installments"
+                  className="block text-sm font-medium text-gray-700 mb-1"
+                >
+                  Total de Parcelas
+                </label>
+                <input
+                  type="number"
+                  id="installments"
+                  value={formData.installments}
+                  onChange={handleChange}
+                  required
+                  className="w-full border rounded-md p-2"
+                />
               </div>
+            </div>
+          )}
+
+          {formData.status === 'PAGO' && (
+            <div>
+              <label htmlFor="paidAt" className="block text-sm font-medium text-gray-700 mb-1">
+                Data e Hora do Pagamento
+              </label>
+              <input
+                type="datetime-local"
+                id="paidAt"
+                value={formData.paidAt}
+                onChange={handleChange}
+                className="w-full border rounded-md p-2"
+              />
             </div>
           )}
 
           {error && <p className="text-sm text-red-500">{error}</p>}
 
           <div className="flex justify-end gap-4 pt-4 border-t mt-4">
-            <button type="button" onClick={onClose} disabled={isSubmitting} className="py-2 px-4 border rounded-lg">Cancelar</button>
-            <button type="submit" disabled={isSubmitting} className="py-2 px-4 bg-blue-600 text-white rounded-lg">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={isSubmitting}
+              className="py-2 px-4 border rounded-lg"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="py-2 px-4 bg-blue-600 text-white rounded-lg"
+            >
               {isSubmitting ? 'Salvando...' : 'Salvar Conta'}
             </button>
           </div>

@@ -1,13 +1,18 @@
 "use client";
 
 import React, { useState } from 'react';
-import { PlusCircle, Pencil, Trash2, CheckCircle, AlertCircle, XCircle } from 'lucide-react';
+import { PlusCircle, Pencil, Trash2, CheckCircle, AlertCircle, XCircle, Clock } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { AccountFormModal } from './AccountFormModal';
 import { DeleteConfirmationModal } from '../DeleteConfirmationModal';
 import { Pagination } from '../Pagination';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+
+type Payment = {
+  id: number;
+  paidAt: string;
+};
 
 type AccountPayable = {
   id: number;
@@ -19,6 +24,7 @@ type AccountPayable = {
   installmentType?: string;        // UNICA ou PARCELADO
   installments?: number | null;    // total de parcelas
   currentInstallment?: number | null; // parcela atual
+  payments?: Payment[]; // Array de pagamentos
 };
 
 type AccountsPayableClientProps = {
@@ -248,17 +254,26 @@ export function AccountsPayableClient({ initialAccounts, totalAccounts }: Accoun
                       })}
                     </td>
                     <td className="p-4 text-gray-600">
-                      {format(new Date(account.dueDate), 'dd/MM/yyyy', { locale: ptBR })}
+                      {format(new Date(account.dueDate), "dd/MM/yyyy", { locale: ptBR })}
                     </td>
                     <td className="p-4">
-                      <span
-                        className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${getStatusClass(account.status)}`}
-                      >
-                        {account.status === 'PAGO' && <CheckCircle size={14} className="text-green-700" />}
-                        {account.status === 'VENCIDO' && <XCircle size={14} className="text-red-700" />}
-                        {account.status === 'A_PAGAR' && <AlertCircle size={14} className="text-yellow-700" />}
-                        {formatStatusText(account.status)}
-                      </span>
+                      <div className={`inline-flex flex-col gap-1`}>
+                        <span
+                          className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${getStatusClass(account.status)}`}
+                        >
+                          {account.status === 'PAGO' && <CheckCircle size={14} className="text-green-700" />}
+                          {account.status === 'VENCIDO' && <XCircle size={14} className="text-red-700" />}
+                          {account.status === 'A_PAGAR' && <AlertCircle size={14} className="text-yellow-700" />}
+                          {formatStatusText(account.status)}
+                        </span>
+
+                        {account.status === 'PAGO' && Array.isArray(account.payments) && account.payments.length > 0 && (
+                          <span className="inline-flex items-center text-xs text-gray-500 ml-1">
+                            <Clock size={12} className="mr-1" />
+                            {format(new Date(account.payments[0].paidAt), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="p-4">
                       <div className="flex gap-4">

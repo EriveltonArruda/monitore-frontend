@@ -138,17 +138,23 @@ const MovementIcon = ({ type }: { type: string }) => {
 }
 
 const MovementTypeTag = ({ type }: { type: string }) => {
-  const styles: { [key: string]: { color: string; label: string } } = {
-    ENTRADA: { color: 'text-green-700 bg-green-100', label: 'Entrada' },
-    SAIDA: { color: 'text-red-700 bg-red-100', label: 'Saída' },
-    AJUSTE: { color: 'text-blue-700 bg-blue-100', label: 'Ajuste' },
-    AVARIA: { color: 'text-yellow-700 bg-yellow-100', label: 'Avaria' },
-    EMPRESTIMO: { color: 'text-purple-700 bg-purple-100', label: 'Empréstimo' },
-    PERDA: { color: 'text-gray-700 bg-gray-100', label: 'Perda' },
-    USO_INTERNO: { color: 'text-indigo-700 bg-indigo-100', label: 'Uso Interno' },
+  const styles: { [key: string]: { color: string; label: string; icon: React.ElementType } } = {
+    ENTRADA: { color: 'text-green-700 bg-green-100', label: 'Entrada', icon: ArrowUpRight },
+    SAIDA: { color: 'text-red-700 bg-red-100', label: 'Saída', icon: ArrowDownLeft },
+    AJUSTE: { color: 'text-blue-700 bg-blue-100', label: 'Ajuste', icon: Wrench },
+    AVARIA: { color: 'text-yellow-700 bg-yellow-100', label: 'Avaria', icon: Wrench },
+    EMPRESTIMO: { color: 'text-purple-700 bg-purple-100', label: 'Empréstimo', icon: ArrowDownLeft },
+    PERDA: { color: 'text-gray-700 bg-gray-100', label: 'Perda', icon: ArrowDownLeft },
+    USO_INTERNO: { color: 'text-indigo-700 bg-indigo-100', label: 'Uso Interno', icon: ArrowDownLeft },
   };
+
   const info = styles[type] || styles.AJUSTE;
+  const Icon = info.icon;
+
   return (
-    <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full ${info.color}`}>{info.label}</span>
-  )
-}
+    <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-0.5 rounded-full ${info.color}`}>
+      <Icon size={14} />
+      {info.label}
+    </span>
+  );
+};
