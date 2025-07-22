@@ -1,13 +1,14 @@
 "use client";
 
 import React, { useState } from 'react';
-import { PlusCircle, Pencil, Trash2, CheckCircle, AlertCircle, XCircle, Clock } from 'lucide-react';
+import { PlusCircle, Pencil, Trash2, CheckCircle, AlertCircle, XCircle, Clock, History } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { AccountFormModal } from './AccountFormModal';
 import { DeleteConfirmationModal } from '../DeleteConfirmationModal';
 import { Pagination } from '../Pagination';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { PaymentHistoryModal } from '../payments/PaymentHistoryModal';
 
 type Payment = {
   id: number;
@@ -21,10 +22,10 @@ type AccountPayable = {
   value: number;
   dueDate: string;
   status: string;
-  installmentType?: string;        // UNICA ou PARCELADO
-  installments?: number | null;    // total de parcelas
-  currentInstallment?: number | null; // parcela atual
-  payments?: Payment[]; // Array de pagamentos
+  installmentType?: string;
+  installments?: number | null;
+  currentInstallment?: number | null;
+  payments?: Payment[];
 };
 
 type AccountsPayableClientProps = {
@@ -43,6 +44,7 @@ export function AccountsPayableClient({ initialAccounts, totalAccounts }: Accoun
   const [editingAccount, setEditingAccount] = useState<AccountPayable | null>(null);
   const [deletingAccount, setDeletingAccount] = useState<AccountPayable | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null); // Novo: controlar histórico
 
   const handleOpenCreateModal = () => {
     setEditingAccount(null);
@@ -166,6 +168,12 @@ export function AccountsPayableClient({ initialAccounts, totalAccounts }: Accoun
           isDeleting={isDeleting}
         />
       )}
+      {selectedAccountId && (
+        <PaymentHistoryModal
+          accountId={selectedAccountId}
+          onClose={() => setSelectedAccountId(null)}
+        />
+      )}
 
       <div className="max-w-7xl mx-auto">
         <div className="flex justify-between items-center mb-8">
@@ -218,7 +226,7 @@ export function AccountsPayableClient({ initialAccounts, totalAccounts }: Accoun
                 <th className="p-4 font-semibold text-gray-600">Valor</th>
                 <th className="p-4 font-semibold text-gray-600">Vencimento</th>
                 <th className="p-4 font-semibold text-gray-600">Status</th>
-                <th className="p-4 font-semibold text-gray-600 w-24">Ações</th>
+                <th className="p-4 font-semibold text-gray-600 w-32">Ações</th>
               </tr>
             </thead>
             <tbody>
@@ -257,9 +265,9 @@ export function AccountsPayableClient({ initialAccounts, totalAccounts }: Accoun
                       {format(new Date(account.dueDate), "dd/MM/yyyy", { locale: ptBR })}
                     </td>
                     <td className="p-4">
-                      <div className={`inline-flex flex-col gap-1`}>
+                      <div className="inline-flex flex-col gap-1">
                         <span
-                          className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${getStatusClass(account.status)}`}
+                          className={`inline-flex w-fit items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${getStatusClass(account.status)}`}
                         >
                           {account.status === 'PAGO' && <CheckCircle size={14} className="text-green-700" />}
                           {account.status === 'VENCIDO' && <XCircle size={14} className="text-red-700" />}
@@ -276,16 +284,25 @@ export function AccountsPayableClient({ initialAccounts, totalAccounts }: Accoun
                       </div>
                     </td>
                     <td className="p-4">
-                      <div className="flex gap-4">
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setSelectedAccountId(account.id)}
+                          className="text-gray-400 hover:text-yellow-600"
+                          title="Ver histórico"
+                        >
+                          <History size={18} />
+                        </button>
                         <button
                           onClick={() => handleOpenEditModal(account)}
                           className="text-gray-400 hover:text-blue-600"
+                          title="Editar"
                         >
                           <Pencil size={18} />
                         </button>
                         <button
                           onClick={() => handleOpenDeleteModal(account)}
                           className="text-gray-400 hover:text-red-600"
+                          title="Excluir"
                         >
                           <Trash2 size={18} />
                         </button>
