@@ -9,6 +9,7 @@ type Payment = {
   paidAt: string;
   amount: number;
   createdAt: string;
+  bankAccount?: string | null;
 };
 
 interface Props {
@@ -19,11 +20,6 @@ interface Props {
 export function PaymentHistoryModal({ accountId, onClose }: Props) {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
-
-  const [showForm, setShowForm] = useState(false);
-  const [newPaidAt, setNewPaidAt] = useState('');
-  const [newAmount, setNewAmount] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     fetchPayments();
@@ -41,75 +37,11 @@ export function PaymentHistoryModal({ accountId, onClose }: Props) {
     }
   }
 
-  async function handleAddPayment() {
-    if (!newPaidAt || !newAmount) {
-      alert('Preencha a data e o valor.');
-      return;
-    }
-
-    setIsSubmitting(true);
-
-    try {
-      await fetch('http://localhost:3001/payments', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          accountId,
-          paidAt: newPaidAt,
-          amount: parseFloat(newAmount),
-        }),
-      });
-
-      await fetchPayments(); // recarrega a lista
-      setShowForm(false);
-      setNewPaidAt('');
-      setNewAmount('');
-    } catch (error) {
-      alert('Erro ao adicionar pagamento.');
-      console.error(error);
-    } finally {
-      setIsSubmitting(false);
-    }
-  }
-
   return (
     <div className="fixed inset-0 bg-black/60 bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg p-6 w-full max-w-md relative">
         <button onClick={onClose} className="absolute top-2 right-2 text-gray-600">X</button>
         <h2 className="text-xl font-semibold mb-4">Histórico de Pagamentos</h2>
-
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className={`mb-4 px-4 py-2 rounded text-white font-medium transition ${showForm ? 'bg-gray-500 hover:bg-gray-600' : 'bg-blue-600 hover:bg-blue-700'
-            }`}
-        >
-          {showForm ? 'Cancelar' : 'Adicionar pagamento'}
-        </button>
-
-        {showForm && (
-          <div className="mb-4 space-y-2">
-            <input
-              type="datetime-local"
-              value={newPaidAt}
-              onChange={(e) => setNewPaidAt(e.target.value)}
-              className="w-full border p-2 rounded"
-            />
-            <input
-              type="number"
-              placeholder="Valor"
-              value={newAmount}
-              onChange={(e) => setNewAmount(e.target.value)}
-              className="w-full border p-2 rounded"
-            />
-            <button
-              onClick={handleAddPayment}
-              disabled={isSubmitting}
-              className="bg-blue-600 text-white px-4 py-2 rounded w-full"
-            >
-              {isSubmitting ? 'Salvando...' : 'Salvar Pagamento'}
-            </button>
-          </div>
-        )}
 
         {loading ? (
           <p>Carregando...</p>
@@ -125,6 +57,10 @@ export function PaymentHistoryModal({ accountId, onClose }: Props) {
                   {typeof payment.amount === 'number'
                     ? payment.amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
                     : '---'}
+                </p>
+                <p>
+                  <strong>Conta bancária usada:</strong>{' '}
+                  {payment.bankAccount || 'Não informado'}
                 </p>
               </li>
             ))}

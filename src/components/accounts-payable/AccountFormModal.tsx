@@ -38,15 +38,19 @@ export function AccountFormModal({
     installmentType: 'UNICA',
     installments: '',
     currentInstallment: '',
+    manualPaymentAmount: '',
+    manualBankAccount: '',
     paidAt: '',
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Preenche o formulário se estiver no modo de edição
   useEffect(() => {
     if (isEditMode && accountToEdit) {
-      setFormData({
+      setFormData((prev) => ({
+        ...prev,
         name: accountToEdit.name || '',
         category: accountToEdit.category || '',
         value: accountToEdit.value || 0,
@@ -57,15 +61,16 @@ export function AccountFormModal({
         installmentType: accountToEdit.installmentType || 'UNICA',
         installments: accountToEdit.installments?.toString() || '',
         currentInstallment: accountToEdit.currentInstallment?.toString() || '',
-        paidAt: '', // Não enviado ao backend, apenas exibido
-      });
+      }));
     }
   }, [isEditMode, accountToEdit]);
 
+  // Atualiza estado dos campos
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setFormData({ ...formData, [e.target.id]: e.target.value });
   };
 
+  // Envia os dados do formulário
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setIsSubmitting(true);
@@ -86,10 +91,9 @@ export function AccountFormModal({
           : null,
     };
 
-    // ⚠️ Não envia paidAt — isso será tratado automaticamente no backend
-
     try {
       let response;
+
       if (isEditMode) {
         const url = `http://localhost:3001/accounts-payable/${accountToEdit!.id}`;
         response = await fetch(url, {
@@ -97,6 +101,27 @@ export function AccountFormModal({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(dataToSend),
         });
+
+        // Envia o pagamento manual, se preenchido e maior que zero
+        const amount = parseFloat(formData.manualPaymentAmount);
+        if (!isNaN(amount) && amount > 0) {
+          const paidAt =
+            formData.paidAt && !isNaN(new Date(formData.paidAt).getTime())
+              ? new Date(formData.paidAt)
+              : new Date();
+
+          // Novo: envio da conta bancária usada
+          await fetch('http://localhost:3001/payments', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              accountId: accountToEdit!.id,
+              paidAt,
+              amount,
+              bankAccount: formData.manualBankAccount || null,
+            }),
+          });
+        }
       } else {
         const url = 'http://localhost:3001/accounts-payable';
         response = await fetch(url, {
@@ -133,6 +158,7 @@ export function AccountFormModal({
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          {/* Campos principais */}
           <div>
             <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
               Nome da Conta *
@@ -208,11 +234,9 @@ export function AccountFormModal({
             </div>
           </div>
 
+          {/* Parcelamento */}
           <div>
-            <label
-              htmlFor="installmentType"
-              className="block text-sm font-medium text-gray-700 mb-1"
-            >
+            <label htmlFor="installmentType" className="block text-sm font-medium text-gray-700 mb-1">
               Tipo de Parcela
             </label>
             <select
@@ -229,10 +253,7 @@ export function AccountFormModal({
           {formData.installmentType === 'PARCELADO' && (
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label
-                  htmlFor="currentInstallment"
-                  className="block text-sm font-medium text-gray-700 mb-1"
-                >
+                <label htmlFor="currentInstallment" className="block text-sm font-medium text-gray-700 mb-1">
                   Parcela Atual
                 </label>
                 <input
@@ -245,10 +266,7 @@ export function AccountFormModal({
                 />
               </div>
               <div>
-                <label
-                  htmlFor="installments"
-                  className="block text-sm font-medium text-gray-700 mb-1"
-                >
+                <label htmlFor="installments" className="block text-sm font-medium text-gray-700 mb-1">
                   Total de Parcelas
                 </label>
                 <input
@@ -263,19 +281,38 @@ export function AccountFormModal({
             </div>
           )}
 
-          {formData.status === 'PAGO' && (
-            <div>
-              <label htmlFor="paidAt" className="block text-sm font-medium text-gray-700 mb-1">
-                Data e Hora do Pagamento
-              </label>
-              <input
-                type="datetime-local"
-                id="paidAt"
-                value={formData.paidAt}
-                onChange={handleChange}
-                className="w-full border rounded-md p-2"
-              />
-            </div>
+          {/* Pagamento manual (somente no modo edição e se ainda estiver A_PAGAR) */}
+          {isEditMode && formData.status === 'A_PAGAR' && (
+            <>
+              <div>
+                <label htmlFor="manualPaymentAmount" className="block text-sm font-medium text-gray-700 mb-1">
+                  Valor do Pagamento (manual)
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  id="manualPaymentAmount"
+                  value={formData.manualPaymentAmount}
+                  onChange={handleChange}
+                  className="w-full border rounded-md p-2"
+                  placeholder="Ex: 50.00"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="manualBankAccount" className="block text-sm font-medium text-gray-700 mb-1">
+                  Conta Bancária Usada
+                </label>
+                <input
+                  type="text"
+                  id="manualBankAccount"
+                  value={formData.manualBankAccount}
+                  onChange={handleChange}
+                  className="w-full border rounded-md p-2"
+                  placeholder="Ex: Banco do Brasil - Conta 12345-6"
+                />
+              </div>
+            </>
           )}
 
           {error && <p className="text-sm text-red-500">{error}</p>}
