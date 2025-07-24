@@ -1,9 +1,9 @@
 "use client";
 
-import React, { FormEvent, useEffect, useState } from 'react';
-import { X } from 'lucide-react';
-import { useRouter } from 'next/navigation';
-import { format } from 'date-fns';
+import React, { FormEvent, useEffect, useState } from "react";
+import { X } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { format } from "date-fns";
 
 type AccountPayable = {
   id: number;
@@ -30,47 +30,46 @@ export function AccountFormModal({
   const isEditMode = Boolean(accountToEdit);
 
   const [formData, setFormData] = useState({
-    name: '',
-    category: '',
+    name: "",
+    category: "",
     value: 0,
-    dueDate: '',
-    status: 'A_PAGAR',
-    installmentType: 'UNICA',
-    installments: '',
-    currentInstallment: '',
-    manualPaymentAmount: '',
-    manualBankAccount: '',
-    paidAt: '',
+    dueDate: "",
+    status: "A_PAGAR",
+    installmentType: "UNICA",
+    installments: "",
+    currentInstallment: "",
+    manualPaymentAmount: "",
+    manualBankAccount: "",
+    paidAt: "",
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Preenche o formulário se estiver no modo de edição
   useEffect(() => {
     if (isEditMode && accountToEdit) {
       setFormData((prev) => ({
         ...prev,
-        name: accountToEdit.name || '',
-        category: accountToEdit.category || '',
+        name: accountToEdit.name || "",
+        category: accountToEdit.category || "",
         value: accountToEdit.value || 0,
         dueDate: accountToEdit.dueDate
-          ? format(new Date(accountToEdit.dueDate), 'yyyy-MM-dd')
-          : '',
-        status: accountToEdit.status || 'A_PAGAR',
-        installmentType: accountToEdit.installmentType || 'UNICA',
-        installments: accountToEdit.installments?.toString() || '',
-        currentInstallment: accountToEdit.currentInstallment?.toString() || '',
+          ? format(new Date(accountToEdit.dueDate), "yyyy-MM-dd")
+          : "",
+        status: accountToEdit.status || "A_PAGAR",
+        installmentType: accountToEdit.installmentType || "UNICA",
+        installments: accountToEdit.installments?.toString() || "",
+        currentInstallment: accountToEdit.currentInstallment?.toString() || "",
       }));
     }
   }, [isEditMode, accountToEdit]);
 
-  // Atualiza estado dos campos
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) => {
     setFormData({ ...formData, [e.target.id]: e.target.value });
   };
 
-  // Envia os dados do formulário
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setIsSubmitting(true);
@@ -80,13 +79,15 @@ export function AccountFormModal({
       name: formData.name,
       category: formData.category,
       value: parseFloat(String(formData.value)),
-      dueDate: new Date(formData.dueDate + 'T00:00:00'),
+      dueDate: new Date(formData.dueDate + "T00:00:00"),
       status: formData.status,
       installmentType: formData.installmentType,
       installments:
-        formData.installmentType === 'PARCELADO' ? parseInt(formData.installments) : null,
+        formData.installmentType === "PARCELADO"
+          ? parseInt(formData.installments)
+          : null,
       currentInstallment:
-        formData.installmentType === 'PARCELADO'
+        formData.installmentType === "PARCELADO"
           ? parseInt(formData.currentInstallment)
           : null,
     };
@@ -97,12 +98,11 @@ export function AccountFormModal({
       if (isEditMode) {
         const url = `http://localhost:3001/accounts-payable/${accountToEdit!.id}`;
         response = await fetch(url, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify(dataToSend),
         });
 
-        // Envia o pagamento manual, se preenchido e maior que zero
         const amount = parseFloat(formData.manualPaymentAmount);
         if (!isNaN(amount) && amount > 0) {
           const paidAt =
@@ -110,10 +110,9 @@ export function AccountFormModal({
               ? new Date(formData.paidAt)
               : new Date();
 
-          // Novo: envio da conta bancária usada
-          await fetch('http://localhost:3001/payments', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+          await fetch("http://localhost:3001/payments", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               accountId: accountToEdit!.id,
               paidAt,
@@ -123,17 +122,38 @@ export function AccountFormModal({
           });
         }
       } else {
-        const url = 'http://localhost:3001/accounts-payable';
+        const url = "http://localhost:3001/accounts-payable";
         response = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify(dataToSend),
         });
+
+        const result = await response.json();
+
+        const amount = parseFloat(formData.manualPaymentAmount);
+        if ((!isNaN(amount) && amount > 0) || formData.status === "PAGO") {
+          const paidAt =
+            formData.paidAt && !isNaN(new Date(formData.paidAt).getTime())
+              ? new Date(formData.paidAt)
+              : new Date();
+
+          await fetch("http://localhost:3001/payments", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              accountId: result.id,
+              paidAt,
+              amount: isNaN(amount) || amount <= 0 ? formData.value : amount,
+              bankAccount: formData.manualBankAccount || null,
+            }),
+          });
+        }
       }
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.message || 'Falha ao salvar conta.');
+        throw new Error(errorData.message || "Falha ao salvar conta.");
       }
 
       router.refresh();
@@ -150,15 +170,17 @@ export function AccountFormModal({
       <div className="bg-white rounded-xl shadow-lg w-full max-w-lg">
         <div className="flex justify-between items-center p-6 border-b">
           <h2 className="text-xl font-bold">
-            {isEditMode ? 'Editar Conta' : 'Nova Conta a Pagar'}
+            {isEditMode ? "Editar Conta" : "Nova Conta a Pagar"}
           </h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600"
+          >
             <X size={24} />
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          {/* Campos principais */}
           <div>
             <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
               Nome da Conta *
@@ -234,7 +256,6 @@ export function AccountFormModal({
             </div>
           </div>
 
-          {/* Parcelamento */}
           <div>
             <label htmlFor="installmentType" className="block text-sm font-medium text-gray-700 mb-1">
               Tipo de Parcela
@@ -250,7 +271,7 @@ export function AccountFormModal({
             </select>
           </div>
 
-          {formData.installmentType === 'PARCELADO' && (
+          {formData.installmentType === "PARCELADO" && (
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label htmlFor="currentInstallment" className="block text-sm font-medium text-gray-700 mb-1">
@@ -281,8 +302,7 @@ export function AccountFormModal({
             </div>
           )}
 
-          {/* Pagamento manual (somente no modo edição e se ainda estiver A_PAGAR) */}
-          {isEditMode && formData.status === 'A_PAGAR' && (
+          {(formData.status === "A_PAGAR" || isEditMode) && (
             <>
               <div>
                 <label htmlFor="manualPaymentAmount" className="block text-sm font-medium text-gray-700 mb-1">
@@ -315,6 +335,21 @@ export function AccountFormModal({
             </>
           )}
 
+          {(formData.status === "PAGO" || (!isNaN(parseFloat(formData.manualPaymentAmount)) && parseFloat(formData.manualPaymentAmount) > 0)) && (
+            <div>
+              <label htmlFor="paidAt" className="block text-sm font-medium text-gray-700 mb-1">
+                Data e Hora do Pagamento
+              </label>
+              <input
+                type="datetime-local"
+                id="paidAt"
+                value={formData.paidAt}
+                onChange={handleChange}
+                className="w-full border rounded-md p-2"
+              />
+            </div>
+          )}
+
           {error && <p className="text-sm text-red-500">{error}</p>}
 
           <div className="flex justify-end gap-4 pt-4 border-t mt-4">
@@ -331,7 +366,7 @@ export function AccountFormModal({
               disabled={isSubmitting}
               className="py-2 px-4 bg-blue-600 text-white rounded-lg"
             >
-              {isSubmitting ? 'Salvando...' : 'Salvar Conta'}
+              {isSubmitting ? "Salvando..." : "Salvar Conta"}
             </button>
           </div>
         </form>
