@@ -15,6 +15,8 @@ type AccountPayable = {
   installmentType?: string;
   installments?: number | null;
   currentInstallment?: number | null;
+  isRecurring?: boolean;
+  recurringUntil?: string | null;
 };
 
 type AccountFormModalProps = {
@@ -29,6 +31,7 @@ export function AccountFormModal({
   const router = useRouter();
   const isEditMode = Boolean(accountToEdit);
 
+  // Estado do formulário com todos os campos, inclusive os de recorrência
   const [formData, setFormData] = useState({
     name: "",
     category: "",
@@ -41,11 +44,14 @@ export function AccountFormModal({
     manualPaymentAmount: "",
     manualBankAccount: "",
     paidAt: "",
+    isRecurring: false,
+    recurringUntil: "",
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Preenche os campos no modo de edição
   useEffect(() => {
     if (isEditMode && accountToEdit) {
       setFormData((prev) => ({
@@ -60,6 +66,10 @@ export function AccountFormModal({
         installmentType: accountToEdit.installmentType || "UNICA",
         installments: accountToEdit.installments?.toString() || "",
         currentInstallment: accountToEdit.currentInstallment?.toString() || "",
+        isRecurring: accountToEdit.isRecurring || false,
+        recurringUntil: accountToEdit.recurringUntil
+          ? format(new Date(accountToEdit.recurringUntil), "yyyy-MM-dd")
+          : "",
       }));
     }
   }, [isEditMode, accountToEdit]);
@@ -67,7 +77,21 @@ export function AccountFormModal({
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => {
-    setFormData({ ...formData, [e.target.id]: e.target.value });
+    const { id, value, type } = e.target;
+
+    // Se for checkbox, fazemos uma verificação de tipo (type guard)
+    if (type === "checkbox") {
+      const checked = (e.target as HTMLInputElement).checked;
+      setFormData({
+        ...formData,
+        [id]: checked,
+      });
+    } else {
+      setFormData({
+        ...formData,
+        [id]: value,
+      });
+    }
   };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -90,6 +114,10 @@ export function AccountFormModal({
         formData.installmentType === "PARCELADO"
           ? parseInt(formData.currentInstallment)
           : null,
+      isRecurring: formData.isRecurring,
+      recurringUntil: formData.isRecurring && formData.recurringUntil
+        ? new Date(formData.recurringUntil + "T00:00:00")
+        : null,
     };
 
     try {
@@ -181,8 +209,9 @@ export function AccountFormModal({
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          {/* Campos principais */}
           <div>
-            <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="name" className="block text-sm font-medium mb-1">
               Nome da Conta *
             </label>
             <input
@@ -195,9 +224,10 @@ export function AccountFormModal({
             />
           </div>
 
+          {/* Valor e Categoria */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label htmlFor="category" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="category" className="block text-sm font-medium mb-1">
                 Categoria *
               </label>
               <input
@@ -210,7 +240,7 @@ export function AccountFormModal({
               />
             </div>
             <div>
-              <label htmlFor="value" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="value" className="block text-sm font-medium mb-1">
                 Valor *
               </label>
               <input
@@ -225,9 +255,10 @@ export function AccountFormModal({
             </div>
           </div>
 
+          {/* Vencimento e Status */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label htmlFor="dueDate" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="dueDate" className="block text-sm font-medium mb-1">
                 Data de Vencimento *
               </label>
               <input
@@ -240,7 +271,7 @@ export function AccountFormModal({
               />
             </div>
             <div>
-              <label htmlFor="status" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="status" className="block text-sm font-medium mb-1">
                 Status
               </label>
               <select
@@ -256,8 +287,9 @@ export function AccountFormModal({
             </div>
           </div>
 
+          {/* Parcelamento */}
           <div>
-            <label htmlFor="installmentType" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="installmentType" className="block text-sm font-medium mb-1">
               Tipo de Parcela
             </label>
             <select
@@ -274,7 +306,7 @@ export function AccountFormModal({
           {formData.installmentType === "PARCELADO" && (
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label htmlFor="currentInstallment" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="currentInstallment" className="block text-sm font-medium mb-1">
                   Parcela Atual
                 </label>
                 <input
@@ -287,7 +319,7 @@ export function AccountFormModal({
                 />
               </div>
               <div>
-                <label htmlFor="installments" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="installments" className="block text-sm font-medium mb-1">
                   Total de Parcelas
                 </label>
                 <input
@@ -302,10 +334,39 @@ export function AccountFormModal({
             </div>
           )}
 
+          {/* Repetição mensal */}
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="isRecurring"
+              checked={formData.isRecurring}
+              onChange={handleChange}
+            />
+            <label htmlFor="isRecurring" className="text-sm font-medium">
+              Repetir mensalmente
+            </label>
+          </div>
+
+          {formData.isRecurring && (
+            <div>
+              <label htmlFor="recurringUntil" className="block text-sm font-medium mb-1">
+                Repetir até
+              </label>
+              <input
+                type="date"
+                id="recurringUntil"
+                value={formData.recurringUntil}
+                onChange={handleChange}
+                className="w-full border rounded-md p-2"
+              />
+            </div>
+          )}
+
+          {/* Pagamento manual */}
           {(formData.status === "A_PAGAR" || isEditMode) && (
             <>
               <div>
-                <label htmlFor="manualPaymentAmount" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="manualPaymentAmount" className="block text-sm font-medium mb-1">
                   Valor do Pagamento (manual)
                 </label>
                 <input
@@ -320,7 +381,7 @@ export function AccountFormModal({
               </div>
 
               <div>
-                <label htmlFor="manualBankAccount" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="manualBankAccount" className="block text-sm font-medium mb-1">
                   Conta Bancária Usada
                 </label>
                 <input
@@ -335,9 +396,9 @@ export function AccountFormModal({
             </>
           )}
 
-          {(formData.status === "PAGO" || (!isNaN(parseFloat(formData.manualPaymentAmount)) && parseFloat(formData.manualPaymentAmount) > 0)) && (
+          {(formData.status === "PAGO" || parseFloat(formData.manualPaymentAmount) > 0) && (
             <div>
-              <label htmlFor="paidAt" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="paidAt" className="block text-sm font-medium mb-1">
                 Data e Hora do Pagamento
               </label>
               <input
