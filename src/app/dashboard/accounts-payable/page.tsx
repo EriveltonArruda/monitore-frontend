@@ -47,6 +47,9 @@ export default async function AccountsPayablePage({
     params.append('status', String(status));
   }
 
+  const category = resolvedSearchParams['category'] ?? '';
+  if (category) params.append('category', String(category));
+
   const paginatedAccounts = await getPaginatedAccounts(params);
 
   return (

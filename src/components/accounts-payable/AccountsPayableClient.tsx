@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { PlusCircle, Pencil, Trash2, CheckCircle, AlertCircle, XCircle, Clock, History } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { AccountFormModal } from './AccountFormModal';
@@ -46,8 +46,21 @@ export function AccountsPayableClient({ initialAccounts, totalAccounts }: Accoun
   const [isDeleting, setIsDeleting] = useState(false);
   const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
 
-  // Filtro de status na URL ou padrão TODOS
+  // Filtros vindos da URL
   const status = searchParams.get('status') || 'TODOS';
+  const category = searchParams.get('category') || 'TODAS';
+
+  // Gera as opções únicas de categoria da listagem
+  const categoryOptions = useMemo(() => {
+    const unique: string[] = [];
+    for (const acc of initialAccounts) {
+      if (acc.category && !unique.includes(acc.category)) {
+        unique.push(acc.category);
+      }
+    }
+    unique.sort((a, b) => a.localeCompare(b, 'pt-BR'));
+    return [{ value: 'TODAS', label: 'Todas as Categorias' }, ...unique.map(c => ({ value: c, label: c }))];
+  }, [initialAccounts]);
 
   const handleOpenCreateModal = () => {
     setEditingAccount(null);
@@ -135,7 +148,7 @@ export function AccountsPayableClient({ initialAccounts, totalAccounts }: Accoun
     router.push(`?${params.toString()}`);
   };
 
-  // NOVO: handle para filtro de status
+  // Handler do filtro de status
   const handleStatusChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const params = new URLSearchParams(searchParams.toString());
     const selectedStatus = e.target.value;
@@ -143,6 +156,19 @@ export function AccountsPayableClient({ initialAccounts, totalAccounts }: Accoun
       params.set('status', selectedStatus);
     } else {
       params.delete('status');
+    }
+    params.set('page', '1');
+    router.push(`?${params.toString()}`);
+  };
+
+  // Handler do filtro de categoria
+  const handleCategoryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const params = new URLSearchParams(searchParams.toString());
+    const selectedCategory = e.target.value;
+    if (selectedCategory && selectedCategory !== 'TODAS') {
+      params.set('category', selectedCategory);
+    } else {
+      params.delete('category');
     }
     params.set('page', '1');
     router.push(`?${params.toString()}`);
@@ -171,7 +197,6 @@ export function AccountsPayableClient({ initialAccounts, totalAccounts }: Accoun
     { value: '2025', label: '2025' },
   ];
 
-  // NOVO: opções para status
   const statusOptions = [
     { value: 'TODOS', label: 'Todos os Status' },
     { value: 'A_PAGAR', label: 'A Pagar' },
@@ -214,7 +239,7 @@ export function AccountsPayableClient({ initialAccounts, totalAccounts }: Accoun
           </button>
         </div>
 
-        {/* Filtros (agora com status) */}
+        {/* Filtros */}
         <div className="flex gap-4 mb-6">
           <select
             title="Selecione o mês"
@@ -251,6 +276,17 @@ export function AccountsPayableClient({ initialAccounts, totalAccounts }: Accoun
               <option key={opt.value} value={opt.value}>
                 {opt.label}
               </option>
+            ))}
+          </select>
+          {/* Filtro de categoria */}
+          <select
+            title="Selecione a categoria"
+            value={category}
+            onChange={handleCategoryChange}
+            className="border rounded-lg px-3 py-2"
+          >
+            {categoryOptions.map(opt => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
             ))}
           </select>
         </div>
