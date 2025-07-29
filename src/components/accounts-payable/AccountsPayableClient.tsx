@@ -44,7 +44,10 @@ export function AccountsPayableClient({ initialAccounts, totalAccounts }: Accoun
   const [editingAccount, setEditingAccount] = useState<AccountPayable | null>(null);
   const [deletingAccount, setDeletingAccount] = useState<AccountPayable | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null); // Novo: controlar histórico
+  const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
+
+  // Filtro de status na URL ou padrão TODOS
+  const status = searchParams.get('status') || 'TODOS';
 
   const handleOpenCreateModal = () => {
     setEditingAccount(null);
@@ -132,6 +135,19 @@ export function AccountsPayableClient({ initialAccounts, totalAccounts }: Accoun
     router.push(`?${params.toString()}`);
   };
 
+  // NOVO: handle para filtro de status
+  const handleStatusChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const params = new URLSearchParams(searchParams.toString());
+    const selectedStatus = e.target.value;
+    if (selectedStatus && selectedStatus !== 'TODOS') {
+      params.set('status', selectedStatus);
+    } else {
+      params.delete('status');
+    }
+    params.set('page', '1');
+    router.push(`?${params.toString()}`);
+  };
+
   const monthOptions = [
     { value: '', label: 'Todos os meses' },
     { value: '1', label: 'Janeiro' },
@@ -153,6 +169,14 @@ export function AccountsPayableClient({ initialAccounts, totalAccounts }: Accoun
     { value: '2023', label: '2023' },
     { value: '2024', label: '2024' },
     { value: '2025', label: '2025' },
+  ];
+
+  // NOVO: opções para status
+  const statusOptions = [
+    { value: 'TODOS', label: 'Todos os Status' },
+    { value: 'A_PAGAR', label: 'A Pagar' },
+    { value: 'PAGO', label: 'Pago' },
+    { value: 'VENCIDO', label: 'Vencido' },
   ];
 
   return (
@@ -190,6 +214,7 @@ export function AccountsPayableClient({ initialAccounts, totalAccounts }: Accoun
           </button>
         </div>
 
+        {/* Filtros (agora com status) */}
         <div className="flex gap-4 mb-6">
           <select
             title="Selecione o mês"
@@ -210,6 +235,19 @@ export function AccountsPayableClient({ initialAccounts, totalAccounts }: Accoun
             className="border rounded-lg px-3 py-2"
           >
             {yearOptions.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+          {/* Filtro de status */}
+          <select
+            title="Selecione o status"
+            value={status}
+            onChange={handleStatusChange}
+            className="border rounded-lg px-3 py-2"
+          >
+            {statusOptions.map((opt) => (
               <option key={opt.value} value={opt.value}>
                 {opt.label}
               </option>
