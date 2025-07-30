@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation"; // NOVO
+import { useSearchParams } from "next/navigation";
 import { format, parse } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Pagination } from "@/components/Pagination";
@@ -12,6 +12,23 @@ const categoryOptions = [
   { value: "Aluguel", label: "Aluguel" },
   { value: "Energia", label: "Energia" },
   { value: "Internet", label: "Internet" },
+];
+
+// Novo: lista de meses para o filtro
+const monthOptions = [
+  { value: "", label: "Todos os Meses" },
+  { value: "01", label: "Janeiro" },
+  { value: "02", label: "Fevereiro" },
+  { value: "03", label: "Março" },
+  { value: "04", label: "Abril" },
+  { value: "05", label: "Maio" },
+  { value: "06", label: "Junho" },
+  { value: "07", label: "Julho" },
+  { value: "08", label: "Agosto" },
+  { value: "09", label: "Setembro" },
+  { value: "10", label: "Outubro" },
+  { value: "11", label: "Novembro" },
+  { value: "12", label: "Dezembro" },
 ];
 
 // Tipo dos dados do relatório
@@ -39,6 +56,7 @@ export default function AccountsPayableReportsPage() {
   }
 
   const [selectedCategory, setSelectedCategory] = useState("TODAS");
+  const [selectedMonth, setSelectedMonth] = useState(""); // Novo filtro de mês
 
   // Lê o valor da página da URL (?page=2)
   const searchParams = useSearchParams();
@@ -66,8 +84,13 @@ export default function AccountsPayableReportsPage() {
     return format(date, "MMMM/yyyy", { locale: ptBR });
   }
 
+  // Novo: filtra pelo mês selecionado
+  const filteredData = selectedMonth
+    ? data.filter(item => item.month.endsWith(`-${selectedMonth}`))
+    : data;
+
   // Calcula os totais gerais dos dados exibidos na página atual
-  const totals = data.reduce(
+  const totals = filteredData.reduce(
     (acc, item) => {
       acc.count += item.count;
       acc.total += item.total;
@@ -120,10 +143,24 @@ export default function AccountsPayableReportsPage() {
             ))}
           </select>
         </div>
+        {/* Mês */}
+        <div className="flex items-center gap-2">
+          <label htmlFor="mes" className="text-sm text-gray-700">Mês:</label>
+          <select
+            id="mes"
+            value={selectedMonth}
+            onChange={e => setSelectedMonth(e.target.value)}
+            className="border rounded-lg px-3 py-2"
+          >
+            {monthOptions.map(opt => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {/* Card de totais gerais */}
-      {data.length > 0 && (
+      {filteredData.length > 0 && (
         <div className="mt-6 grid grid-cols-1 sm:grid-cols-4 gap-4">
           <div className="bg-gray-50 rounded-lg p-4 flex flex-col items-center">
             <span className="text-xs text-gray-500">Total de Contas</span>
@@ -169,14 +206,14 @@ export default function AccountsPayableReportsPage() {
                   Carregando...
                 </td>
               </tr>
-            ) : data.length === 0 ? (
+            ) : filteredData.length === 0 ? (
               <tr>
                 <td colSpan={5} className="p-4 text-center text-gray-400">
                   Nenhum dado para exibir.
                 </td>
               </tr>
             ) : (
-              data.map((item) => (
+              filteredData.map((item) => (
                 <tr key={item.month} className="border-b hover:bg-gray-50 last:border-b-0">
                   <td className="p-4 font-medium text-gray-800">{formatMonth(item.month)}</td>
                   <td className="p-4 text-gray-600">{item.count}</td>
