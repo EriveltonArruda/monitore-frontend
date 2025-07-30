@@ -27,18 +27,23 @@ export default async function UsersManagementPage({
 }: {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
-  // 1. Lemos o token dos cookies no lado do servidor
   const resolvedSearchParams = await searchParams;
   const cookieStore = await cookies();
   const token = cookieStore.get('auth_token')?.value;
 
-  // 2. Preparamos os parâmetros de paginação para a API.
   const params = new URLSearchParams();
   const page = resolvedSearchParams['page'] ?? '1';
   params.append('page', String(page));
   params.append('limit', '10');
 
-  // 3. Buscamos os dados apenas se o token existir.
+  // ADICIONE ESTA LINHA
+  const search = Array.isArray(resolvedSearchParams.search)
+    ? resolvedSearchParams.search[0]
+    : resolvedSearchParams.search || '';
+  if (search) {
+    params.append('search', search);
+  }
+
   const paginatedUsers = token
     ? await getPaginatedUsers(params, token)
     : { data: [], total: 0 };
