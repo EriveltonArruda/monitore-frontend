@@ -15,6 +15,7 @@ import {
   Landmark,
   Contact,
   Users,
+  BarChart2,
 } from 'lucide-react';
 
 // Links da navegação principal de estoque
@@ -30,9 +31,11 @@ const stockNavLinks = [
 // Links para a seção de gerenciamento
 const managementNavLinks = [
   { href: '/dashboard/accounts-payable', label: 'Contas a Pagar', icon: Landmark },
+  { href: '/dashboard/accounts-payable/reports', label: 'Relatório de Contas', icon: BarChart2 },
   { href: '/dashboard/contacts', label: 'Lista de Contatos', icon: Contact },
   { href: '/dashboard/users', label: 'Gerenciar Usuários', icon: Users },
 ]
+
 
 export function Sidebar() {
   const pathname = usePathname();
