@@ -1,9 +1,8 @@
-// Este Client Component agora tem toda a lógica para os modais e a paginação.
 "use client";
 
-import React, { useState } from 'react';
-import { PlusCircle, Pencil, Trash2 } from 'lucide-react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import React, { useState, useEffect } from 'react';
+import { PlusCircle, Pencil, Trash2, Search } from 'lucide-react';
+import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { CategoryFormModal } from './CategoryFormModal';
 import { DeleteConfirmationModal } from '../DeleteConfirmationModal';
 import { Pagination } from '../Pagination';
@@ -23,34 +22,43 @@ const ITEMS_PER_PAGE = 10;
 export function CategoriesPageClient({ initialCategories, totalCategories }: CategoriesPageClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const pathname = usePathname();
 
-  // Estados para controlar os modais
+  // Novo estado para busca!
+  const [searchTerm, setSearchTerm] = useState(searchParams.get('search') || '');
+
+  // Estados para modais e ações
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-
-  // Estados para saber qual item está sendo editado ou deletado
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [deletingCategory, setDeletingCategory] = useState<Category | null>(null);
-
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Funções para abrir os modais
-  const handleOpenCreateModal = () => {
-    setEditingCategory(null);
-    setIsFormModalOpen(true);
-  };
+  // Atualiza a URL (busca/página) sempre que searchTerm mudar
+  useEffect(() => {
+    const params = new URLSearchParams(searchParams.toString());
 
-  const handleOpenEditModal = (category: Category) => {
-    setEditingCategory(category);
-    setIsFormModalOpen(true);
-  };
+    // Atualiza o filtro de busca na URL
+    if (searchTerm) {
+      params.set('search', searchTerm);
+    } else {
+      params.delete('search');
+    }
+    params.set('page', '1'); // Volta pra página 1 ao buscar
 
-  const handleOpenDeleteModal = (category: Category) => {
-    setDeletingCategory(category);
-    setIsDeleteModalOpen(true);
-  };
+    // Debounce para evitar busca a cada tecla
+    const debounceTimer = setTimeout(() => {
+      router.push(`${pathname}?${params.toString()}`);
+    }, 300);
 
-  // Função para fechar todos os modais
+    return () => clearTimeout(debounceTimer);
+    // eslint-disable-next-line
+  }, [searchTerm, pathname, router]);
+
+  // Modais
+  const handleOpenCreateModal = () => { setEditingCategory(null); setIsFormModalOpen(true); };
+  const handleOpenEditModal = (category: Category) => { setEditingCategory(category); setIsFormModalOpen(true); };
+  const handleOpenDeleteModal = (category: Category) => { setDeletingCategory(category); setIsDeleteModalOpen(true); };
   const handleCloseModals = () => {
     setIsFormModalOpen(false);
     setIsDeleteModalOpen(false);
@@ -58,10 +66,9 @@ export function CategoriesPageClient({ initialCategories, totalCategories }: Cat
     setDeletingCategory(null);
   };
 
-  // Função para confirmar e executar a deleção
+  // Excluir categoria
   const handleDeleteConfirm = async () => {
     if (!deletingCategory) return;
-
     setIsDeleting(true);
     try {
       const response = await fetch(`http://localhost:3001/categories/${deletingCategory.id}`, {
@@ -79,7 +86,7 @@ export function CategoriesPageClient({ initialCategories, totalCategories }: Cat
     }
   };
 
-  // Lógica para a paginação
+  // Paginação
   const totalPages = Math.ceil(totalCategories / ITEMS_PER_PAGE);
   const currentPage = Number(searchParams.get('page')) || 1;
 
@@ -100,6 +107,7 @@ export function CategoriesPageClient({ initialCategories, totalCategories }: Cat
         />
       )}
       <div className="max-w-7xl mx-auto">
+        {/* Cabeçalho */}
         <div className="flex justify-between items-center mb-8">
           <div>
             <h1 className="text-3xl font-bold text-gray-800">Gerenciar Categorias</h1>
@@ -113,6 +121,22 @@ export function CategoriesPageClient({ initialCategories, totalCategories }: Cat
             <span>Nova Categoria</span>
           </button>
         </div>
+
+        {/* Campo de busca */}
+        <div className="bg-white p-4 rounded-xl shadow-sm flex items-center gap-4 mb-4">
+          <div className="relative flex-grow">
+            <Search size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Buscar categoria..."
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              className="w-full h-10 pl-10 pr-4 border border-gray-200 rounded-lg"
+            />
+          </div>
+        </div>
+
+        {/* Tabela */}
         <div className="bg-white p-4 rounded-xl shadow-sm">
           <table className="w-full table-auto">
             <thead className="text-left border-b-2 border-gray-100">
@@ -141,7 +165,7 @@ export function CategoriesPageClient({ initialCategories, totalCategories }: Cat
           </table>
         </div>
 
-        {/* Adicionamos o componente de paginação ao final */}
+        {/* Paginação */}
         <Pagination
           currentPage={currentPage}
           totalPages={totalPages}

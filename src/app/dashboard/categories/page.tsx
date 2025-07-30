@@ -32,6 +32,14 @@ export default async function CategoriesManagementPage({
   params.append('page', String(page));
   params.append('limit', '10');
 
+  // ADICIONE ESTA PARTE 👇
+  const search = Array.isArray(resolvedParams.search)
+    ? resolvedParams.search[0]
+    : resolvedParams.search || '';
+  if (search) {
+    params.append('search', search);
+  }
+
   const paginatedCategories = await getPaginatedCategories(params);
 
   return (
