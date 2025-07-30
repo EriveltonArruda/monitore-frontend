@@ -50,6 +50,12 @@ export default async function AccountsPayablePage({
   const category = resolvedSearchParams['category'] ?? '';
   if (category) params.append('category', String(category));
 
+  // NOVO: inclui o search, se houver
+  const search = resolvedSearchParams['search'] ?? '';
+  if (search && String(search).trim() !== '') {
+    params.append('search', String(search));
+  }
+
   const paginatedAccounts = await getPaginatedAccounts(params);
 
   return (

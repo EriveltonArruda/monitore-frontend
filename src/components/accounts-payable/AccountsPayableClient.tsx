@@ -49,6 +49,7 @@ export function AccountsPayableClient({ initialAccounts, totalAccounts }: Accoun
   // Filtros vindos da URL
   const status = searchParams.get('status') || 'TODOS';
   const category = searchParams.get('category') || 'TODAS';
+  const search = searchParams.get('search') || '';
 
   // Gera as opções únicas de categoria da listagem
   const categoryOptions = useMemo(() => {
@@ -124,6 +125,19 @@ export function AccountsPayableClient({ initialAccounts, totalAccounts }: Accoun
   const month = searchParams.get('month') || '';
   const year = searchParams.get('year') || '';
 
+  // Handler do campo de busca
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const params = new URLSearchParams(searchParams.toString());
+    const value = e.target.value;
+    if (value && value.trim() !== '') {
+      params.set('search', value);
+    } else {
+      params.delete('search');
+    }
+    params.set('page', '1');
+    router.push(`?${params.toString()}`);
+  };
+
   const handleMonthChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const params = new URLSearchParams(searchParams.toString());
     const selectedMonth = e.target.value;
@@ -148,7 +162,6 @@ export function AccountsPayableClient({ initialAccounts, totalAccounts }: Accoun
     router.push(`?${params.toString()}`);
   };
 
-  // Handler do filtro de status
   const handleStatusChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const params = new URLSearchParams(searchParams.toString());
     const selectedStatus = e.target.value;
@@ -161,7 +174,6 @@ export function AccountsPayableClient({ initialAccounts, totalAccounts }: Accoun
     router.push(`?${params.toString()}`);
   };
 
-  // Handler do filtro de categoria
   const handleCategoryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const params = new URLSearchParams(searchParams.toString());
     const selectedCategory = e.target.value;
@@ -241,6 +253,16 @@ export function AccountsPayableClient({ initialAccounts, totalAccounts }: Accoun
 
         {/* Filtros */}
         <div className="flex gap-4 mb-6">
+          {/* Campo de busca */}
+          <input
+            type="text"
+            placeholder="Buscar por nome..."
+            value={search}
+            onChange={handleSearchChange}
+            className="border rounded-lg px-3 py-2 w-56"
+            title="Buscar pelo nome da conta"
+          />
+
           <select
             title="Selecione o mês"
             value={month}
