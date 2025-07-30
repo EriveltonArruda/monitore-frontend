@@ -8,7 +8,7 @@ type Supplier = {
   email?: string | null;
 };
 
-// A função de busca agora aceita parâmetros de paginação
+// Função de busca paginada
 async function getPaginatedSuppliers(params: URLSearchParams) {
   const response = await fetch(`http://localhost:3001/suppliers?${params.toString()}`, {
     cache: 'no-store',
@@ -24,7 +24,6 @@ export default async function SuppliersManagementPage({
 }: {
   searchParams: { [key: string]: string | string[] | undefined };
 }) {
-  // Aguarda os parâmetros resolverem
   const resolvedParams = await searchParams;
 
   const params = new URLSearchParams();
@@ -34,6 +33,14 @@ export default async function SuppliersManagementPage({
 
   params.append('page', String(page));
   params.append('limit', '10');
+
+  // Inclui o parâmetro search, se existir!
+  const search = Array.isArray(resolvedParams.search)
+    ? resolvedParams.search[0]
+    : resolvedParams.search || '';
+  if (search) {
+    params.append('search', search);
+  }
 
   const paginatedSuppliers = await getPaginatedSuppliers(params);
 

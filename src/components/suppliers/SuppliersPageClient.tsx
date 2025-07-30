@@ -1,11 +1,10 @@
 "use client";
 
-import React, { useState } from 'react';
-import { PlusCircle, Pencil, Trash2 } from 'lucide-react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import React, { useState, useEffect } from 'react';
+import { PlusCircle, Pencil, Trash2, Search } from 'lucide-react';
+import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { SupplierFormModal } from './SupplierFormModal';
 import { DeleteConfirmationModal } from '../DeleteConfirmationModal';
-// CORREÇÃO: Importamos o componente de paginação padrão.
 import { Pagination } from '../Pagination';
 
 type Supplier = {
@@ -26,19 +25,41 @@ const ITEMS_PER_PAGE = 10;
 export function SuppliersPageClient({ initialSuppliers, totalSuppliers }: SuppliersPageClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const pathname = usePathname();
 
-  // A lógica de modais continua a mesma...
+  // Campo de busca:
+  const [searchTerm, setSearchTerm] = useState(searchParams.get('search') || '');
+
+  // Modais e estados
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
   const [deletingSupplier, setDeletingSupplier] = useState<Supplier | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // Atualiza a URL ao buscar (debounce para UX melhor)
+  useEffect(() => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (searchTerm) {
+      params.set('search', searchTerm);
+    } else {
+      params.delete('search');
+    }
+    params.set('page', '1');
+    const debounce = setTimeout(() => {
+      router.push(`${pathname}?${params.toString()}`);
+    }, 300);
+    return () => clearTimeout(debounce);
+    // eslint-disable-next-line
+  }, [searchTerm, pathname, router]);
+
+  // Modais
   const handleOpenCreateModal = () => { setEditingSupplier(null); setIsFormModalOpen(true); };
   const handleOpenEditModal = (supplier: Supplier) => { setEditingSupplier(supplier); setIsFormModalOpen(true); };
   const handleOpenDeleteModal = (supplier: Supplier) => { setDeletingSupplier(supplier); setIsDeleteModalOpen(true); };
   const handleCloseModals = () => { setIsFormModalOpen(false); setIsDeleteModalOpen(false); setEditingSupplier(null); setDeletingSupplier(null); };
 
+  // Exclusão
   const handleDeleteConfirm = async () => {
     if (!deletingSupplier) return;
     setIsDeleting(true);
@@ -53,7 +74,7 @@ export function SuppliersPageClient({ initialSuppliers, totalSuppliers }: Suppli
     }
   };
 
-  // Lógica para a paginação
+  // Paginação
   const totalPages = Math.ceil(totalSuppliers / ITEMS_PER_PAGE);
   const currentPage = Number(searchParams.get('page')) || 1;
 
@@ -87,6 +108,21 @@ export function SuppliersPageClient({ initialSuppliers, totalSuppliers }: Suppli
             <span>Novo Fornecedor</span>
           </button>
         </div>
+
+        {/* Campo de busca */}
+        <div className="bg-white p-4 rounded-xl shadow-sm flex items-center gap-4 mb-4">
+          <div className="relative flex-grow">
+            <Search size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Buscar fornecedor..."
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              className="w-full h-10 pl-10 pr-4 border border-gray-200 rounded-lg"
+            />
+          </div>
+        </div>
+
         <div className="bg-white p-4 rounded-xl shadow-sm">
           <table className="w-full table-auto">
             <thead className="text-left border-b-2 border-gray-100">
@@ -121,7 +157,6 @@ export function SuppliersPageClient({ initialSuppliers, totalSuppliers }: Suppli
           </table>
         </div>
 
-        {/* CORREÇÃO: Adicionamos o componente de paginação padrão e passamos as props corretas */}
         <Pagination
           currentPage={currentPage}
           totalPages={totalPages}
