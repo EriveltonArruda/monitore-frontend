@@ -1,15 +1,15 @@
 "use client";
 
-import React, { useState } from 'react';
-import { useSearchParams } from 'next/navigation';
-import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
-import { PlusCircle, ArrowUpRight, ArrowDownLeft, Wrench, Trash2 } from 'lucide-react';
-import { MovementFormModal } from './MovementFormModal';
-import { Pagination } from '../Pagination';
-import { DeleteConfirmationModal } from '../DeleteConfirmationModal';
+import React, { useState, useEffect } from "react";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import { PlusCircle, ArrowUpRight, ArrowDownLeft, Wrench, Trash2, Filter, Search } from "lucide-react";
+import { MovementFormModal } from "./MovementFormModal";
+import { Pagination } from "../Pagination";
+import { DeleteConfirmationModal } from "../DeleteConfirmationModal";
 
-// --- DEFINIÇÃO DE TIPOS ---
+// Tipos
 type Product = { id: number; name: string; salePrice: number; };
 type Supplier = { id: number; name: string; };
 type Movement = {
@@ -27,32 +27,60 @@ type MovementsPageClientProps = {
 
 const ITEMS_PER_PAGE = 10;
 
+const TYPE_OPTIONS = [
+  { value: "", label: "Todos os Tipos" },
+  { value: "ENTRADA", label: "Entrada" },
+  { value: "SAIDA", label: "Saída" },
+  { value: "AJUSTE", label: "Ajuste" }
+];
+
+const PERIOD_OPTIONS = [
+  { value: "", label: "Todo Período" },
+  { value: "today", label: "Hoje" },
+  { value: "last7", label: "Última Semana" },
+  { value: "last30", label: "Último Mês" }
+];
+
 export function MovementsPageClient({
   initialMovements,
   totalMovements,
   products,
   suppliers,
 }: MovementsPageClientProps) {
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const router = useRouter();
   const searchParams = useSearchParams();
+  const pathname = usePathname();
 
-  // Para exclusão de movimentação
-  const [deletingMovement, setDeletingMovement] = useState<Movement | null>(null);
+  // Inicializa os filtros lendo da URL
+  const [selectedType, setSelectedType] = useState(searchParams.get("type") || "");
+  const [selectedProduct, setSelectedProduct] = useState(searchParams.get("productId") || "");
+  const [selectedPeriod, setSelectedPeriod] = useState(searchParams.get("period") || "");
+  const [searchTerm, setSearchTerm] = useState(searchParams.get("search") || "");
+
+  // Atualiza a URL com filtros (incluindo busca)
+  useEffect(() => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (selectedType) params.set("type", selectedType); else params.delete("type");
+    if (selectedProduct) params.set("productId", selectedProduct); else params.delete("productId");
+    if (selectedPeriod) params.set("period", selectedPeriod); else params.delete("period");
+    if (searchTerm) params.set("search", searchTerm); else params.delete("search");
+    params.set("page", "1"); // Volta pra página 1 ao filtrar
+    // Debounce pra não buscar a cada tecla
+    const timer = setTimeout(() => {
+      router.push(`${pathname}?${params.toString()}`);
+    }, 350);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line
+  }, [selectedType, selectedProduct, selectedPeriod, searchTerm]);
+
+  // Modal de exclusão
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [deletingMovement, setDeletingMovement] = useState<Movement | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Lógica para a paginação
-  const totalPages = Math.ceil(totalMovements / ITEMS_PER_PAGE);
-  const currentPage = Number(searchParams.get('page')) || 1;
+  // Modal de movimentação
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // Função para formatar moeda
-  const formatCurrency = (value: number | null) => {
-    if (value === null || typeof value === 'undefined') return 'R$ 0,00';
-    return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-  };
-
-  // Função de confirmação de exclusão de movimentação
-  // Função de confirmação de exclusão de movimentação
   const handleDeleteConfirm = async () => {
     if (!deletingMovement) return;
     setIsDeleting(true);
@@ -60,26 +88,24 @@ export function MovementsPageClient({
       const res = await fetch(`http://localhost:3001/stock-movements/${deletingMovement.id}`, {
         method: "DELETE",
       });
-
-      if (!res.ok) {
-        let msg = "Erro ao excluir movimentação!";
-        try {
-          const data = await res.json();
-          if (data && data.message) {
-            msg = Array.isArray(data.message) ? data.message.join("\n") : data.message;
-          }
-        } catch { }
-        throw new Error(msg);
-      }
-
+      if (!res.ok) throw new Error("Erro ao excluir movimentação!");
       setIsDeleteModalOpen(false);
       setDeletingMovement(null);
-      window.location.reload(); // Força recarregar a lista
+      window.location.reload();
     } catch (error: any) {
       alert(error.message || "Erro ao excluir movimentação!");
     } finally {
       setIsDeleting(false);
     }
+  };
+
+  // Paginação
+  const totalPages = Math.ceil(totalMovements / ITEMS_PER_PAGE);
+  const currentPage = Number(searchParams.get("page")) || 1;
+
+  const formatCurrency = (value: number | null) => {
+    if (value === null || typeof value === 'undefined') return 'R$ 0,00';
+    return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   };
 
   return (
@@ -110,16 +136,49 @@ export function MovementsPageClient({
 
       {/* Filtros */}
       <div className="bg-white p-4 rounded-xl shadow-sm mb-8 flex items-center gap-4">
-        <h3 className="font-semibold text-gray-600">Filtros:</h3>
-        <select title='Todos os Tipos' className="h-10 border border-gray-200 rounded-lg bg-white px-2 text-gray-700"><option>Todos os Tipos</option></select>
-        <select title='Todos os Produtos' className="h-10 border border-gray-200 rounded-lg bg-white px-2 text-gray-700"><option>Todos os Produtos</option></select>
-        <select title='Todos os Fornecedores' className="h-10 border border-gray-200 rounded-lg bg-white px-2 text-gray-700"><option>Todo Período</option></select>
+        <Filter size={18} className="text-gray-500" />
+        <select title='Tipo de Movimentação'
+          value={selectedType}
+          onChange={e => setSelectedType(e.target.value)}
+          className="h-10 border border-gray-200 rounded-lg bg-white px-2 text-gray-700"
+        >
+          {TYPE_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+        </select>
+        <select title='Todos os Produtos'
+          value={selectedProduct}
+          onChange={e => setSelectedProduct(e.target.value)}
+          className="h-10 border border-gray-200 rounded-lg bg-white px-2 text-gray-700"
+        >
+          <option value="">Todos os Produtos</option>
+          {products.map(prod => (
+            <option key={prod.id} value={String(prod.id)}>{prod.name}</option>
+          ))}
+        </select>
+        <select title='Período de Movimentação'
+          value={selectedPeriod}
+          onChange={e => setSelectedPeriod(e.target.value)}
+          className="h-10 border border-gray-200 rounded-lg bg-white px-2 text-gray-700"
+        >
+          {PERIOD_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+        </select>
+        <div className="relative flex-grow max-w-xs">
+          <Search size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Buscar movimentação..."
+            value={searchTerm}
+            onChange={e => setSearchTerm(e.target.value)}
+            className="w-full h-10 pl-10 pr-4 border border-gray-200 rounded-lg"
+          />
+        </div>
       </div>
 
       {/* Histórico de Movimentações */}
       <div className="bg-white rounded-xl shadow-sm">
         <div className="p-6 border-b border-gray-200">
-          <h2 className="text-xl font-bold text-gray-800">Histórico de Movimentações ({totalMovements})</h2>
+          <h2 className="text-xl font-bold text-gray-800">
+            Histórico de Movimentações ({totalMovements})
+          </h2>
         </div>
         <div className="p-6 space-y-4">
           {initialMovements.map(mov => {
@@ -179,7 +238,7 @@ export function MovementsPageClient({
   );
 }
 
-// --- COMPONENTES AUXILIARES ---
+// COMPONENTES AUXILIARES
 const MovementIcon = ({ type }: { type: string }) => {
   const styles: { [key: string]: { icon: React.ElementType; color: string } } = {
     ENTRADA: { icon: ArrowUpRight, color: 'text-green-600 bg-green-100' },

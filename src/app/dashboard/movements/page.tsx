@@ -54,9 +54,7 @@ async function getSuppliers(): Promise<Supplier[]> {
 
 // --- O COMPONENTE DA PÁGINA ---
 // Ele lê os parâmetros da URL, busca os dados e os entrega para o componente cliente.
-export default async function MovementsPage({
-  searchParams,
-}: {
+export default async function MovementsPage({ searchParams }: {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const resolvedSearchParams = await searchParams;
@@ -64,7 +62,18 @@ export default async function MovementsPage({
   const params = new URLSearchParams();
   const page = resolvedSearchParams['page'] ?? '1';
   params.append('page', String(page));
-  params.append('limit', '10'); // Limite de 10 por página
+  params.append('limit', '10');
+
+  if (resolvedSearchParams['type']) params.append('type', String(resolvedSearchParams['type']));
+  if (resolvedSearchParams['productId']) params.append('productId', String(resolvedSearchParams['productId']));
+  if (resolvedSearchParams['period']) params.append('period', String(resolvedSearchParams['period']));
+  if (resolvedSearchParams['search']) params.append('search', String(resolvedSearchParams['search']));
+
+  // Campo de busca
+  const search = Array.isArray(resolvedSearchParams['search'])
+    ? resolvedSearchParams['search'][0]
+    : resolvedSearchParams['search'] || '';
+  if (search) params.append('search', search);
 
   const [paginatedMovements, products, suppliers] = await Promise.all([
     getPaginatedMovements(params),
