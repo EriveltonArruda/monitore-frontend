@@ -1,11 +1,12 @@
+// ContactsPageClient.tsx
 "use client";
 
-import React, { useState } from 'react';
-import { PlusCircle, Pencil, Trash2 } from 'lucide-react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import React, { useState, useEffect } from 'react';
+import { PlusCircle, Pencil, Trash2, Search } from 'lucide-react';
+import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { ContactFormModal } from './ContactFormModal';
 import { DeleteConfirmationModal } from '../DeleteConfirmationModal';
-import { Pagination } from '../Pagination'; // Reutilizando nosso componente!
+import { Pagination } from '../Pagination';
 
 type Contact = {
   id: number;
@@ -26,8 +27,29 @@ const ITEMS_PER_PAGE = 10;
 export function ContactsPageClient({ initialContacts, totalContacts }: ContactsPageClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const pathname = usePathname();
 
-  // A lógica de modais continua a mesma...
+  // Campo de busca
+  const [searchTerm, setSearchTerm] = useState(searchParams.get('search') || '');
+
+  // Atualiza a URL sempre que buscar
+  useEffect(() => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (searchTerm) {
+      params.set('search', searchTerm);
+    } else {
+      params.delete('search');
+    }
+    params.set('page', '1'); // sempre volta pra página 1
+
+    const debounce = setTimeout(() => {
+      router.push(`${pathname}?${params.toString()}`);
+    }, 300);
+    return () => clearTimeout(debounce);
+  }, [searchTerm, pathname, router]);
+
+  // ... resto igual
+
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [editingContact, setEditingContact] = useState<Contact | null>(null);
@@ -53,7 +75,6 @@ export function ContactsPageClient({ initialContacts, totalContacts }: ContactsP
     }
   };
 
-  // Lógica para a paginação
   const totalPages = Math.ceil(totalContacts / ITEMS_PER_PAGE);
   const currentPage = Number(searchParams.get('page')) || 1;
 
@@ -87,6 +108,21 @@ export function ContactsPageClient({ initialContacts, totalContacts }: ContactsP
             <span>Novo Contato</span>
           </button>
         </div>
+
+        {/* CAMPO DE BUSCA */}
+        <div className="bg-white p-4 rounded-xl shadow-sm flex items-center gap-4 mb-4">
+          <div className="relative flex-grow">
+            <Search size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Buscar contato..."
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              className="w-full h-10 pl-10 pr-4 border border-gray-200 rounded-lg"
+            />
+          </div>
+        </div>
+
         <div className="bg-white p-4 rounded-xl shadow-sm">
           <table className="w-full table-auto">
             <thead className="text-left border-b-2 border-gray-100">
@@ -122,8 +158,6 @@ export function ContactsPageClient({ initialContacts, totalContacts }: ContactsP
             </tbody>
           </table>
         </div>
-
-        {/* Adicionamos o componente de paginação ao final */}
         <Pagination
           currentPage={currentPage}
           totalPages={totalPages}

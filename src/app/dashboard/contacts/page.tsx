@@ -30,7 +30,14 @@ export default async function ContactsPage({
   const params = new URLSearchParams();
   const page = resolvedSearchParams['page'] ?? '1';
   params.append('page', String(page));
-  params.append('limit', '10'); // Limite de 10 por página
+  params.append('limit', '10');
+
+  const search = Array.isArray(resolvedSearchParams['search'])
+    ? resolvedSearchParams['search'][0]
+    : resolvedSearchParams['search'] || '';
+  if (search) {
+    params.append('search', search);
+  }
 
   const paginatedContacts = await getPaginatedContacts(params);
 
