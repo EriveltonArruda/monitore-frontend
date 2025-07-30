@@ -4,9 +4,10 @@ import React, { useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { PlusCircle, ArrowUpRight, ArrowDownLeft, Wrench } from 'lucide-react';
+import { PlusCircle, ArrowUpRight, ArrowDownLeft, Wrench, Trash2 } from 'lucide-react';
 import { MovementFormModal } from './MovementFormModal';
-import { Pagination } from '../Pagination'; // Importamos nosso componente padrão
+import { Pagination } from '../Pagination';
+import { DeleteConfirmationModal } from '../DeleteConfirmationModal';
 
 // --- DEFINIÇÃO DE TIPOS ---
 type Product = { id: number; name: string; salePrice: number; };
@@ -19,16 +20,26 @@ type Movement = {
 
 type MovementsPageClientProps = {
   initialMovements: Movement[];
-  totalMovements: number; // Nova prop para o total de itens
+  totalMovements: number;
   products: Product[];
   suppliers: Supplier[];
 };
 
 const ITEMS_PER_PAGE = 10;
 
-export function MovementsPageClient({ initialMovements, totalMovements, products, suppliers }: MovementsPageClientProps) {
+export function MovementsPageClient({
+  initialMovements,
+  totalMovements,
+  products,
+  suppliers,
+}: MovementsPageClientProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const searchParams = useSearchParams();
+
+  // Para exclusão de movimentação
+  const [deletingMovement, setDeletingMovement] = useState<Movement | null>(null);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Lógica para a paginação
   const totalPages = Math.ceil(totalMovements / ITEMS_PER_PAGE);
@@ -40,8 +51,49 @@ export function MovementsPageClient({ initialMovements, totalMovements, products
     return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   };
 
+  // Função de confirmação de exclusão de movimentação
+  // Função de confirmação de exclusão de movimentação
+  const handleDeleteConfirm = async () => {
+    if (!deletingMovement) return;
+    setIsDeleting(true);
+    try {
+      const res = await fetch(`http://localhost:3001/stock-movements/${deletingMovement.id}`, {
+        method: "DELETE",
+      });
+
+      if (!res.ok) {
+        let msg = "Erro ao excluir movimentação!";
+        try {
+          const data = await res.json();
+          if (data && data.message) {
+            msg = Array.isArray(data.message) ? data.message.join("\n") : data.message;
+          }
+        } catch { }
+        throw new Error(msg);
+      }
+
+      setIsDeleteModalOpen(false);
+      setDeletingMovement(null);
+      window.location.reload(); // Força recarregar a lista
+    } catch (error: any) {
+      alert(error.message || "Erro ao excluir movimentação!");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   return (
     <div className="max-w-7xl mx-auto">
+      {/* MODAL DE EXCLUSÃO */}
+      {isDeleteModalOpen && deletingMovement && (
+        <DeleteConfirmationModal
+          itemName={deletingMovement.product.name}
+          onConfirm={handleDeleteConfirm}
+          onClose={() => setIsDeleteModalOpen(false)}
+          isDeleting={isDeleting}
+        />
+      )}
+
       {isModalOpen && <MovementFormModal onClose={() => setIsModalOpen(false)} products={products} suppliers={suppliers} />}
 
       {/* Cabeçalho */}
@@ -100,9 +152,19 @@ export function MovementsPageClient({ initialMovements, totalMovements, products
                 <div className="col-span-3 text-right text-sm text-gray-500">
                   {format(new Date(mov.createdAt), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
                 </div>
-                <div className="col-span-3 text-right">
-                  <p className="font-bold text-lg text-gray-800">{formatCurrency(totalValue)}</p>
-                  <p className="text-sm text-gray-500">{formatCurrency(mov.unitPriceAtMovement)}/un</p>
+                <div className="col-span-3 text-right flex items-center justify-end gap-2">
+                  <div>
+                    <p className="font-bold text-lg text-gray-800">{formatCurrency(totalValue)}</p>
+                    <p className="text-sm text-gray-500">{formatCurrency(mov.unitPriceAtMovement)}/un</p>
+                  </div>
+                  <button
+                    title="Excluir movimentação"
+                    className="ml-4 text-gray-400 hover:text-red-600 transition-colors"
+                    onClick={() => { setDeletingMovement(mov); setIsDeleteModalOpen(true); }}
+                    disabled={isDeleting}
+                  >
+                    <Trash2 size={18} />
+                  </button>
                 </div>
               </div>
             )
@@ -111,15 +173,13 @@ export function MovementsPageClient({ initialMovements, totalMovements, products
         </div>
       </div>
 
-      {/* Componente de Paginação Adicionado */}
+      {/* Paginação */}
       <Pagination currentPage={currentPage} totalPages={totalPages} />
     </div>
   );
 }
 
-// --- COMPONENTES AUXILIARES PARA ESTILIZAÇÃO ---
-// Preservando suas customizações completas
-
+// --- COMPONENTES AUXILIARES ---
 const MovementIcon = ({ type }: { type: string }) => {
   const styles: { [key: string]: { icon: React.ElementType; color: string } } = {
     ENTRADA: { icon: ArrowUpRight, color: 'text-green-600 bg-green-100' },

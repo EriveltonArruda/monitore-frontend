@@ -41,18 +41,14 @@ export function ProductPageClient({ products, totalProducts, categories, supplie
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  // O estado agora lê os valores iniciais diretamente da URL para manter a consistência
+  // Estados dos filtros
   const [searchTerm, setSearchTerm] = useState(searchParams.get('search') || '');
   const [selectedCategory, setSelectedCategory] = useState(searchParams.get('categoryId') || '');
   const [selectedStatus, setSelectedStatus] = useState(searchParams.get('status') || '');
   const [selectedStockLevel, setSelectedStockLevel] = useState(searchParams.get('stockLevel') || '');
 
-  // CORREÇÃO: A lógica do useEffect foi refatorada para ser mais robusta.
   useEffect(() => {
-    // 1. Cria um objeto de parâmetros baseado na URL atual, para não perder outros filtros.
     const params = new URLSearchParams(searchParams.toString());
-
-    // 2. Função auxiliar para atualizar ou remover um parâmetro.
     const updateParam = (key: string, value: string) => {
       if (value) {
         params.set(key, value);
@@ -66,18 +62,16 @@ export function ProductPageClient({ products, totalProducts, categories, supplie
     updateParam('status', selectedStatus);
     updateParam('stockLevel', selectedStockLevel);
 
-    // 3. Sempre que um filtro muda, voltamos para a primeira página.
     params.set('page', '1');
 
-    // 4. Usamos um timeout (debounce) para não fazer buscas a cada tecla digitada.
     const debounceTimer = setTimeout(() => {
-      // router.push navega para a nova URL, o que faz o Server Component re-buscar os dados.
       router.push(`${pathname}?${params.toString()}`);
     }, 300);
 
     return () => clearTimeout(debounceTimer);
-  }, [searchTerm, selectedCategory, selectedStatus, selectedStockLevel, pathname, router]);
+  }, [searchTerm, selectedCategory, selectedStatus, selectedStockLevel, pathname, router, searchParams]);
 
+  // Modais e produto a editar/excluir
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -88,7 +82,44 @@ export function ProductPageClient({ products, totalProducts, categories, supplie
   const handleOpenEditModal = (product: Product) => { setEditingProduct(product); setIsModalOpen(true); };
   const handleOpenDeleteModal = (product: Product) => { setDeletingProduct(product); setIsDeleteModalOpen(true); };
   const handleCloseModals = () => { setIsModalOpen(false); setIsDeleteModalOpen(false); };
-  const handleDeleteConfirm = async () => { /* ... */ };
+
+  // FUNÇÃO DELETAR AJUSTADA!
+  const handleDeleteConfirm = async () => {
+    if (!deletingProduct) return;
+
+    setIsDeleting(true);
+
+    try {
+      const res = await fetch(`http://localhost:3001/products/${deletingProduct.id}`, {
+        method: "DELETE",
+      });
+
+      if (!res.ok) {
+        // Tenta extrair a mensagem do backend (NestJS)
+        let message = "Erro ao excluir produto!";
+        try {
+          const data = await res.json();
+          // O backend NestJS geralmente retorna { message: '...' }
+          if (data && data.message) {
+            message = Array.isArray(data.message) ? data.message.join("\n") : data.message;
+          }
+        } catch {
+          // fallback
+        }
+        throw new Error(message);
+      }
+
+      setIsDeleteModalOpen(false);
+      setDeletingProduct(null);
+
+      // Atualiza a lista (Server Component revalida!)
+      router.refresh();
+    } catch (error: any) {
+      alert(error.message || "Erro ao excluir produto!");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   const formatCurrency = (value: number | null) => {
     if (value === null || typeof value === 'undefined') return 'R$ 0,00';
