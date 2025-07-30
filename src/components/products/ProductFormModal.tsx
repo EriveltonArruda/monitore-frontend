@@ -1,4 +1,4 @@
-// CORREÇÃO: A função handleSubmit foi refatorada com um bloco if/else explícito.
+// CORREÇÃO: "Estoque Atual" só leitura e removido campo de Preço de Venda.
 "use client";
 
 import { X } from 'lucide-react';
@@ -9,7 +9,6 @@ import { useRouter } from 'next/navigation';
 type Category = { id: number; name: string; };
 type Supplier = { id: number; name: string; };
 
-// O tipo Product completo, correspondente ao que o ProductPageClient envia
 type Product = {
   id: number; name: string; sku: string | null; description: string | null;
   stockQuantity: number; minStockQuantity: number; salePrice: number;
@@ -28,12 +27,14 @@ type ProductFormModalProps = {
 export function ProductFormModal({ onClose, onSuccess, categories, suppliers, productToEdit }: ProductFormModalProps) {
   const isEditMode = Boolean(productToEdit);
 
+  // Estado inicial do formulário
   const [formData, setFormData] = useState({
     name: '', sku: '', description: '', categoryId: '', status: 'ATIVO',
-    stockQuantity: 0, minStockQuantity: 10, salePrice: 0, costPrice: 0,
+    stockQuantity: 0, minStockQuantity: 10, /* salePrice REMOVIDO */ costPrice: 0,
     supplierId: '', location: '',
   });
 
+  // Preenche o formulário se estiver editando
   useEffect(() => {
     if (isEditMode && productToEdit) {
       setFormData({
@@ -44,7 +45,7 @@ export function ProductFormModal({ onClose, onSuccess, categories, suppliers, pr
         status: productToEdit.status || 'ATIVO',
         stockQuantity: productToEdit.stockQuantity || 0,
         minStockQuantity: productToEdit.minStockQuantity || 10,
-        salePrice: productToEdit.salePrice || 0,
+        // salePrice: productToEdit.salePrice || 0, // REMOVIDO
         costPrice: productToEdit.costPrice || 0,
         supplierId: String(productToEdit.supplierId || ''),
         location: productToEdit.location || '',
@@ -64,22 +65,21 @@ export function ProductFormModal({ onClose, onSuccess, categories, suppliers, pr
     setIsSubmitting(true);
     setError(null);
 
+    // Monta o objeto para enviar (REMOVIDO salePrice)
     const dataToSend = {
       ...formData,
       categoryId: parseInt(formData.categoryId, 10),
       supplierId: formData.supplierId ? parseInt(formData.supplierId, 10) : undefined,
       stockQuantity: parseInt(String(formData.stockQuantity), 10),
       minStockQuantity: parseInt(String(formData.minStockQuantity), 10),
-      salePrice: parseFloat(String(formData.salePrice)),
+      // salePrice: parseFloat(String(formData.salePrice)), // REMOVIDO
       costPrice: formData.costPrice ? parseFloat(String(formData.costPrice)) : undefined,
     };
 
     try {
       let response;
       if (isEditMode) {
-        if (!productToEdit) {
-          throw new Error("Erro: Produto para edição não foi encontrado.");
-        }
+        if (!productToEdit) throw new Error("Erro: Produto para edição não foi encontrado.");
         const url = `http://localhost:3001/products/${productToEdit.id}`;
         response = await fetch(url, {
           method: 'PATCH',
@@ -102,7 +102,6 @@ export function ProductFormModal({ onClose, onSuccess, categories, suppliers, pr
 
       onSuccess();
       onClose();
-
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -156,9 +155,20 @@ export function ProductFormModal({ onClose, onSuccess, categories, suppliers, pr
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* ESTOQUE ATUAL APENAS LEITURA */}
             <div>
               <label htmlFor="stockQuantity" className="block text-sm font-medium text-gray-700 mb-1">Estoque Atual</label>
-              <input type="number" id="stockQuantity" name="stockQuantity" value={formData.stockQuantity} onChange={handleChange} className="w-full border border-gray-300 rounded-md shadow-sm p-2" />
+              <input
+                type="number"
+                id="stockQuantity"
+                name="stockQuantity"
+                value={formData.stockQuantity}
+                readOnly // Torna o campo só leitura
+                disabled // Desabilita para não parecer editável
+                className="w-full border border-gray-200 rounded-md shadow-sm p-2 bg-gray-100 text-gray-500 cursor-not-allowed"
+                tabIndex={-1}
+              />
+              <span className="text-xs text-gray-400">Só é alterado por movimentações</span>
             </div>
             <div>
               <label htmlFor="minStockQuantity" className="block text-sm font-medium text-gray-700 mb-1">Estoque Mínimo</label>
@@ -166,18 +176,13 @@ export function ProductFormModal({ onClose, onSuccess, categories, suppliers, pr
             </div>
           </div>
 
+          {/* REMOVIDO BLOCO DE PREÇO DE VENDA */}
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label htmlFor="salePrice" className="block text-sm font-medium text-gray-700 mb-1">Preço de Venda *</label>
-              <input type="number" id="salePrice" name="salePrice" value={formData.salePrice} onChange={handleChange} step="0.01" required className="w-full border border-gray-300 rounded-md shadow-sm p-2" />
-            </div>
             <div>
               <label htmlFor="costPrice" className="block text-sm font-medium text-gray-700 mb-1">Preço de Custo</label>
               <input type="number" id="costPrice" name="costPrice" value={formData.costPrice} onChange={handleChange} step="0.01" className="w-full border border-gray-300 rounded-md shadow-sm p-2" />
             </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label htmlFor="supplierId" className="block text-sm font-medium text-gray-700 mb-1">Fornecedor</label>
               <select
@@ -197,11 +202,16 @@ export function ProductFormModal({ onClose, onSuccess, categories, suppliers, pr
                   : <option disabled>Erro ao carregar fornecedores</option>}
               </select>
             </div>
-            <div>
-              <label htmlFor="location" className="block text-sm font-medium text-gray-700 mb-1">Localização</label>
-              <input type="text" id="location" name="location" value={formData.location} onChange={handleChange} placeholder="Localização no estoque" className="w-full border border-gray-300 rounded-md shadow-sm p-2" />
-            </div>
           </div>
+
+          <div>
+            <label htmlFor="location" className="block text-sm font-medium text-gray-700 mb-1">Localização</label>
+            <input type="text" id="location" name="location" value={formData.location} onChange={handleChange} placeholder="Localização no estoque" className="w-full border border-gray-300 rounded-md shadow-sm p-2" />
+          </div>
+
+          {error && (
+            <div className="text-red-600 text-sm">{error}</div>
+          )}
 
           <div className="flex justify-end gap-4 pt-6 border-t border-gray-200 mt-6">
             <button type="button" onClick={onClose} disabled={isSubmitting} className="py-2 px-4 border border-gray-300 rounded-lg text-gray-700 font-semibold hover:bg-gray-100">
