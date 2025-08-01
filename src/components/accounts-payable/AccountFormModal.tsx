@@ -5,6 +5,7 @@ import { X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 
+// Tipagem da conta para edição (opcional)
 type AccountPayable = {
   id: number;
   name: string;
@@ -51,7 +52,11 @@ export function AccountFormModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Preenche o formulário no modo de edição
+  // Guarda os valores anteriores de recorrência para restaurar caso o usuário alterne entre tipos de parcela
+  const [prevRecurring, setPrevRecurring] = useState(false);
+  const [prevRecurringUntil, setPrevRecurringUntil] = useState("");
+
+  // Preenche o formulário no modo de edição e armazena valores de recorrência originais
   useEffect(() => {
     if (isEditMode && accountToEdit) {
       setFormData((prev) => ({
@@ -69,10 +74,39 @@ export function AccountFormModal({
           ? format(new Date(accountToEdit.recurringUntil), "yyyy-MM-dd")
           : "",
       }));
+      setPrevRecurring(accountToEdit.isRecurring || false);
+      setPrevRecurringUntil(
+        accountToEdit.recurringUntil
+          ? format(new Date(accountToEdit.recurringUntil), "yyyy-MM-dd")
+          : ""
+      );
     }
   }, [isEditMode, accountToEdit]);
 
-  // Atualiza o estado conforme o usuário digita ou seleciona
+  // Controla o comportamento do campo de recorrência conforme o tipo de parcela
+  useEffect(() => {
+    if (formData.installmentType === "PARCELADO") {
+      // Ao selecionar Parcelado, limpa os campos de recorrência
+      setPrevRecurring(formData.isRecurring);
+      setPrevRecurringUntil(formData.recurringUntil);
+      setFormData((prev) => ({
+        ...prev,
+        isRecurring: false,
+        recurringUntil: "",
+      }));
+    }
+    if (formData.installmentType === "UNICA") {
+      // Ao voltar para Única, restaura os valores salvos
+      setFormData((prev) => ({
+        ...prev,
+        isRecurring: prevRecurring,
+        recurringUntil: prevRecurringUntil,
+      }));
+    }
+    // eslint-disable-next-line
+  }, [formData.installmentType]);
+
+  // Handler para inputs
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => {
@@ -86,6 +120,7 @@ export function AccountFormModal({
     }
   };
 
+  // Handler de envio do formulário
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setIsSubmitting(true);
@@ -126,7 +161,7 @@ export function AccountFormModal({
           : new Date();
     }
 
-    // Se o usuário apenas marcou status=PAGO (sem valor manual), também inclua pagamento total
+    // Se marcar como PAGO (sem valor manual), gera pagamento do valor total
     if (formData.status === "PAGO" && (isNaN(manual) || manual <= 0)) {
       dataToSend.paymentAmount = String(formData.value);
       dataToSend.bankAccount = formData.manualBankAccount || null;
@@ -303,6 +338,7 @@ export function AccountFormModal({
               <option value="PARCELADO">Parcelado</option>
             </select>
           </div>
+          {/* Campos só aparecem se for parcelado */}
           {formData.installmentType === "PARCELADO" && (
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -339,43 +375,36 @@ export function AccountFormModal({
               </div>
             </div>
           )}
-          {/* Repetição mensal */}
-          <div className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              id="isRecurring"
-              checked={formData.isRecurring}
-              onChange={handleChange}
-            />
-            <label htmlFor="isRecurring" className="text-sm font-medium">
-              Repetir mensalmente
-            </label>
-          </div>
-          {formData.isRecurring && (
-            <div>
-              <label
-                htmlFor="recurringUntil"
-                className="block text-sm font-medium mb-1"
-              >
-                Repetir até
-              </label>
+          {/* Checkbox de repetição mensal aparece só se for parcela única */}
+          {formData.installmentType === "UNICA" && (
+            <div className="flex items-center gap-2">
               <input
-                type="date"
-                id="recurringUntil"
-                value={formData.recurringUntil}
+                type="checkbox"
+                id="isRecurring"
+                checked={formData.isRecurring}
                 onChange={handleChange}
-                className="w-full border rounded-md p-2"
               />
+              <label htmlFor="isRecurring" className="text-sm font-medium">
+                Repetir mensalmente
+              </label>
+              {formData.isRecurring && (
+                <input
+                  type="date"
+                  id="recurringUntil"
+                  value={formData.recurringUntil}
+                  onChange={handleChange}
+                  className="border rounded-lg px-2 py-1 ml-2"
+                  min={new Date().toISOString().slice(0, 10)}
+                  required
+                />
+              )}
             </div>
           )}
-          {/* Pagamento manual (mantido para A Pagar) */}
-          {(formData.status === "A_PAGAR" || isEditMode) && (
+          {/* Pagamento manual (mantido só para status A_PAGAR, não mostra se status for PAGO!) */}
+          {formData.status === "A_PAGAR" && (
             <>
               <div>
-                <label
-                  htmlFor="manualPaymentAmount"
-                  className="block text-sm font-medium mb-1"
-                >
+                <label htmlFor="manualPaymentAmount" className="block text-sm font-medium mb-1">
                   Valor do Pagamento (manual)
                 </label>
                 <input
@@ -389,10 +418,7 @@ export function AccountFormModal({
                 />
               </div>
               <div>
-                <label
-                  htmlFor="manualBankAccount"
-                  className="block text-sm font-medium mb-1"
-                >
+                <label htmlFor="manualBankAccount" className="block text-sm font-medium mb-1">
                   Conta Bancária Usada
                 </label>
                 <input
@@ -406,15 +432,14 @@ export function AccountFormModal({
               </div>
             </>
           )}
-          {/* --- CAMPOS DE PAGAMENTO PARA STATUS “PAGO” --- */}
+
+          {/* Campos de pagamento só para status "PAGO" OU quando valor manual é informado,
+    MAS só mostra o campo Conta Bancária aqui se status for PAGO! */}
           {(formData.status === "PAGO" ||
             parseFloat(formData.manualPaymentAmount.replace(",", ".")) > 0) && (
               <>
                 <div>
-                  <label
-                    htmlFor="paidAt"
-                    className="block text-sm font-medium mb-1"
-                  >
+                  <label htmlFor="paidAt" className="block text-sm font-medium mb-1">
                     Data e Hora do Pagamento
                   </label>
                   <input
@@ -425,22 +450,22 @@ export function AccountFormModal({
                     className="w-full border rounded-md p-2"
                   />
                 </div>
-                <div>
-                  <label
-                    htmlFor="manualBankAccount"
-                    className="block text-sm font-medium mb-1"
-                  >
-                    Conta Bancária Usada
-                  </label>
-                  <input
-                    type="text"
-                    id="manualBankAccount"
-                    value={formData.manualBankAccount}
-                    onChange={handleChange}
-                    className="w-full border rounded-md p-2"
-                    placeholder="Ex: Banco do Brasil – Conta 12345‑6"
-                  />
-                </div>
+                {/* Só mostra o campo Conta Bancária nesse bloco se o status for PAGO */}
+                {formData.status === "PAGO" && (
+                  <div>
+                    <label htmlFor="manualBankAccount" className="block text-sm font-medium mb-1">
+                      Conta Bancária Usada
+                    </label>
+                    <input
+                      type="text"
+                      id="manualBankAccount"
+                      value={formData.manualBankAccount}
+                      onChange={handleChange}
+                      className="w-full border rounded-md p-2"
+                      placeholder="Ex: Banco do Brasil – Conta 12345‑6"
+                    />
+                  </div>
+                )}
               </>
             )}
           {error && <p className="text-sm text-red-500">{error}</p>}
