@@ -2,6 +2,8 @@
 
 import { cookies } from 'next/headers';
 import { UsersPageClient } from '@/components/users/UsersPageClient';
+import { RequireModule } from "@/components/RequireModule";
+import { UserModule } from "@/types/UserModule";
 
 // Define o "contrato" dos dados que esperamos da API.
 type User = {
@@ -49,9 +51,11 @@ export default async function UsersManagementPage({
     : { data: [], total: 0 };
 
   return (
-    <UsersPageClient
-      initialUsers={paginatedUsers.data}
-      totalUsers={paginatedUsers.total}
-    />
+    <RequireModule module={UserModule.USUARIOS}>
+      <UsersPageClient
+        initialUsers={paginatedUsers.data}
+        totalUsers={paginatedUsers.total}
+      />
+    </RequireModule>
   );
 }

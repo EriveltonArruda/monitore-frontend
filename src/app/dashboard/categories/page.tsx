@@ -1,4 +1,6 @@
 import { CategoriesPageClient } from '@/components/categories/CategoriesPageClient';
+import { RequireModule } from "@/components/RequireModule";
+import { UserModule } from "@/types/UserModule";
 
 type Category = {
   id: number;
@@ -43,9 +45,11 @@ export default async function CategoriesManagementPage({
   const paginatedCategories = await getPaginatedCategories(params);
 
   return (
-    <CategoriesPageClient
-      initialCategories={paginatedCategories.data}
-      totalCategories={paginatedCategories.total}
-    />
+    <RequireModule module={UserModule.CATEGORIAS}>
+      <CategoriesPageClient
+        initialCategories={paginatedCategories.data}
+        totalCategories={paginatedCategories.total}
+      />
+    </RequireModule>
   );
 }

@@ -1,4 +1,6 @@
 import { SuppliersPageClient } from '@/components/suppliers/SuppliersPageClient';
+import { RequireModule } from "@/components/RequireModule";
+import { UserModule } from "@/types/UserModule";
 
 type Supplier = {
   id: number;
@@ -45,9 +47,11 @@ export default async function SuppliersManagementPage({
   const paginatedSuppliers = await getPaginatedSuppliers(params);
 
   return (
-    <SuppliersPageClient
-      initialSuppliers={paginatedSuppliers.data}
-      totalSuppliers={paginatedSuppliers.total}
-    />
+    <RequireModule module={UserModule.FORNECEDORES}>
+      <SuppliersPageClient
+        initialSuppliers={paginatedSuppliers.data}
+        totalSuppliers={paginatedSuppliers.total}
+      />
+    </RequireModule>
   );
 }

@@ -1,4 +1,6 @@
 import { AccountsPayableClient } from '@/components/accounts-payable/AccountsPayableClient';
+import { RequireModule } from "@/components/RequireModule";
+import { UserModule } from "@/types/UserModule";
 
 type AccountPayable = {
   id: number;
@@ -59,9 +61,11 @@ export default async function AccountsPayablePage({
   const paginatedAccounts = await getPaginatedAccounts(params);
 
   return (
-    <AccountsPayableClient
-      initialAccounts={paginatedAccounts.data}
-      totalAccounts={paginatedAccounts.total}
-    />
+    <RequireModule module={UserModule.CONTAS_PAGAR}>
+      <AccountsPayableClient
+        initialAccounts={paginatedAccounts.data}
+        totalAccounts={paginatedAccounts.total}
+      />
+    </RequireModule>
   );
 }

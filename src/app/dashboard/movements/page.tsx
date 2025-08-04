@@ -1,6 +1,8 @@
 // Este é o Server Component. Ele busca os dados e os passa para o cliente.
 
 import { MovementsPageClient } from "@/components/movements/MovementsPageClient";
+import { RequireModule } from "@/components/RequireModule";
+import { UserModule } from "@/types/UserModule";
 
 // --- DEFINIÇÃO DE TIPOS ---
 // Definimos os tipos de dados que esperamos da nossa API.
@@ -82,11 +84,13 @@ export default async function MovementsPage({ searchParams }: {
   ]);
 
   return (
-    <MovementsPageClient
-      initialMovements={paginatedMovements.data}
-      totalMovements={paginatedMovements.total}
-      products={products}
-      suppliers={suppliers}
-    />
+    <RequireModule module={UserModule.MOVIMENTACOES}>
+      <MovementsPageClient
+        initialMovements={paginatedMovements.data}
+        totalMovements={paginatedMovements.total}
+        products={products}
+        suppliers={suppliers}
+      />
+    </RequireModule>
   );
 }

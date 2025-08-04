@@ -1,4 +1,6 @@
 import { ReportsClient } from '@/components/reports/ReportsClient';
+import { RequireModule } from "@/components/RequireModule";
+import { UserModule } from "@/types/UserModule";
 
 // A definição de tipos para os dados que vêm da API
 type ReportData = {
@@ -28,5 +30,9 @@ export default async function ReportsPage() {
   const reportData = await getReportData();
 
   // Passamos os dados para o componente cliente, que cuidará da renderização
-  return <ReportsClient data={reportData} />;
+  return (
+    <RequireModule module={UserModule.RELATORIOS}>
+      <ReportsClient data={reportData} />;
+    </RequireModule>
+  )
 }

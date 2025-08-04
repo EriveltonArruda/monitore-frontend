@@ -3,7 +3,8 @@
 import { useState, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { LogIn } from 'lucide-react';
-import Cookies from 'js-cookie'; // Importamos a biblioteca
+import Cookies from 'js-cookie';
+import { UserModule } from "@/types/UserModule";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -33,9 +34,34 @@ export default function LoginPage() {
       // CORREÇÃO: Salvamos o token em um cookie que expira em 1 dia.
       Cookies.set('auth_token', data.access_token, { expires: 1 });
 
-      // Redireciona para o dashboard após o login
-      router.push('/dashboard');
-      router.refresh(); // Força a atualização dos dados do layout
+      // Buscar o usuário para pegar os módulos
+      const res = await fetch('http://localhost:3001/users/me', {
+        headers: { Authorization: `Bearer ${data.access_token}` }
+      });
+      const user = await res.json();
+
+      // Definir home
+      const moduleToHome = {
+        CONTAS_PAGAR: '/dashboard/accounts-payable',
+        ESTOQUE: '/dashboard/products',
+        MOVIMENTACOES: '/dashboard/movements',
+        RELATORIOS: '/dashboard/reports',
+        USUARIOS: '/dashboard/users',
+        DASHBOARD: '/dashboard',
+        FORNECEDORES: '/dashboard/suppliers',
+        CATEGORIAS: '/dashboard/categories',
+        CONTATOS: '/dashboard/contacts',
+        RELATORIO_CONTAS_PAGAR: '/dashboard/accounts-payable/reports',
+      };
+
+      // Se for admin, dashboard. Se não, pega o primeiro módulo permitido, senão, not-authorized
+      const homeRoute =
+        user.role === 'ADMIN'
+          ? '/dashboard'
+          : moduleToHome[user.modules[0] as UserModule] || '/not-authorized';
+
+      router.push(homeRoute);
+      router.refresh();
 
     } catch (err: any) {
       setError(err.message);

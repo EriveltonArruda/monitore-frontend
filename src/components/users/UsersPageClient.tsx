@@ -1,19 +1,22 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { PlusCircle, Trash2, KeyRound, Search } from 'lucide-react';
+import { PlusCircle, Trash2, KeyRound, Search, Pencil } from 'lucide-react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { UserFormModal } from './UserFormModal';
 import { DeleteConfirmationModal } from '../DeleteConfirmationModal';
 import { ChangePasswordModal } from './ChangePasswordModal';
 import { Pagination } from '../Pagination';
 import Cookies from 'js-cookie';
+import type { User } from '@/types/User';
 
-type User = {
-  id: number;
-  name: string;
-  email: string;
-};
+// type User = {
+//   id: number;
+//   name: string;
+//   email: string;
+//   role?: string;
+//   modules?: string[];
+// };
 
 type UsersPageClientProps = {
   initialUsers: User[];
@@ -32,6 +35,7 @@ export function UsersPageClient({ initialUsers, totalUsers }: UsersPageClientPro
 
   // Estados para modais
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<User | null>(null); // <== novo
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isChangePasswordModalOpen, setIsChangePasswordModalOpen] = useState(false);
 
@@ -61,12 +65,15 @@ export function UsersPageClient({ initialUsers, totalUsers }: UsersPageClientPro
   // Funções para abrir os modais
   const handleOpenDeleteModal = (user: User) => { setDeletingUser(user); setIsDeleteModalOpen(true); };
   const handleOpenChangePasswordModal = (user: User) => { setChangingPasswordForUser(user); setIsChangePasswordModalOpen(true); };
+  const handleOpenEditModal = (user: User) => { setEditingUser(user); setIsFormModalOpen(true); }; // <== novo
+  const handleOpenCreateModal = () => { setEditingUser(null); setIsFormModalOpen(true); }; // <== novo
   const handleCloseModals = () => {
     setIsFormModalOpen(false);
     setIsDeleteModalOpen(false);
     setIsChangePasswordModalOpen(false);
     setDeletingUser(null);
     setChangingPasswordForUser(null);
+    setEditingUser(null); // <== novo
   };
 
   // Função para deletar usuário
@@ -95,7 +102,12 @@ export function UsersPageClient({ initialUsers, totalUsers }: UsersPageClientPro
   return (
     <>
       {/* Modais */}
-      {isFormModalOpen && <UserFormModal onClose={handleCloseModals} />}
+      {isFormModalOpen && (
+        <UserFormModal
+          onClose={handleCloseModals}
+          user={editingUser ?? undefined} // <== se nulo, criação
+        />
+      )}
       {isDeleteModalOpen && deletingUser && (
         <DeleteConfirmationModal
           itemName={deletingUser.name}
@@ -116,9 +128,9 @@ export function UsersPageClient({ initialUsers, totalUsers }: UsersPageClientPro
         <div className="flex justify-between items-center mb-8">
           <div>
             <h1 className="text-3xl font-bold">Gerenciar Usuários</h1>
-            <p className="text-sm text-gray-500">Adicione ou remova usuários do sistema</p>
+            <p className="text-sm text-gray-500">Adicione, edite ou remova usuários do sistema</p>
           </div>
-          <button onClick={() => setIsFormModalOpen(true)} className="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2">
+          <button onClick={handleOpenCreateModal} className="bg-blue-600 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2">
             <PlusCircle size={20} />
             <span>Novo Usuário</span>
           </button>
@@ -145,7 +157,7 @@ export function UsersPageClient({ initialUsers, totalUsers }: UsersPageClientPro
               <tr>
                 <th className="p-4 font-semibold">Nome</th>
                 <th className="p-4 font-semibold">Email</th>
-                <th className="p-4 font-semibold w-24">Ações</th>
+                <th className="p-4 font-semibold w-32">Ações</th>
               </tr>
             </thead>
             <tbody>
@@ -154,7 +166,14 @@ export function UsersPageClient({ initialUsers, totalUsers }: UsersPageClientPro
                   <td className="p-4 font-medium">{user.name}</td>
                   <td className="p-4 text-gray-600">{user.email}</td>
                   <td className="p-4">
-                    <div className="flex gap-4">
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleOpenEditModal(user)}
+                        className="text-gray-400 hover:text-emerald-600"
+                        title="Editar usuário"
+                      >
+                        <Pencil size={18} />
+                      </button>
                       <button
                         onClick={() => handleOpenChangePasswordModal(user)}
                         className="text-gray-400 hover:text-blue-600"

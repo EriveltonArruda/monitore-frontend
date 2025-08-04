@@ -1,4 +1,6 @@
 import { ContactsPageClient } from '@/components/contacts/ContactsPageClient';
+import { RequireModule } from "@/components/RequireModule";
+import { UserModule } from "@/types/UserModule";
 
 type Contact = {
   id: number;
@@ -42,9 +44,11 @@ export default async function ContactsPage({
   const paginatedContacts = await getPaginatedContacts(params);
 
   return (
-    <ContactsPageClient
-      initialContacts={paginatedContacts.data}
-      totalContacts={paginatedContacts.total}
-    />
+    <RequireModule module={UserModule.CONTATOS}>
+      <ContactsPageClient
+        initialContacts={paginatedContacts.data}
+        totalContacts={paginatedContacts.total}
+      />
+    </RequireModule>
   );
 }

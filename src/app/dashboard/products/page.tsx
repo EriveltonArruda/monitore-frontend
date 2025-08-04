@@ -1,6 +1,8 @@
 // Este Server Component é a única fonte da verdade para buscar dados.
 
 import { ProductPageClient } from '@/components/products/ProductPageClient';
+import { RequireModule } from "@/components/RequireModule";
+import { UserModule } from "@/types/UserModule";
 
 type Category = { id: number; name: string; };
 type Supplier = { id: number; name: string; };
@@ -75,11 +77,13 @@ export default async function ProductsPage({
   ]);
 
   return (
-    <ProductPageClient
-      products={paginatedProducts.data}
-      totalProducts={paginatedProducts.total}
-      categories={categories}
-      suppliers={suppliers}
-    />
+    <RequireModule module={UserModule.ESTOQUE}>
+      <ProductPageClient
+        products={paginatedProducts.data}
+        totalProducts={paginatedProducts.total}
+        categories={categories}
+        suppliers={suppliers}
+      />
+    </RequireModule>
   );
 }
