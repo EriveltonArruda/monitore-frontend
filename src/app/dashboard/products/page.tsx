@@ -21,6 +21,7 @@ type Product = {
   supplierId: number | null;
   category: Category | null;
   supplier: Supplier | null;
+  createdAt: string; // NOVO
 };
 
 // Funções de busca de dados...

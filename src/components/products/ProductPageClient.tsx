@@ -7,7 +7,6 @@ import { ProductFormModal } from './ProductFormModal';
 import { DeleteConfirmationModal } from '../DeleteConfirmationModal';
 import { Pagination } from '../Pagination';
 
-// Tipos para os dados do componente
 type Category = { id: number; name: string; };
 type Supplier = { id: number; name: string; };
 type Product = {
@@ -25,6 +24,7 @@ type Product = {
   location: string | null;
   categoryId: number | null;
   supplierId: number | null;
+  createdAt: string; // NOVO CAMPO
 };
 
 type ProductPageClientProps = {
@@ -41,7 +41,6 @@ export function ProductPageClient({ products, totalProducts, categories, supplie
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  // Estados dos filtros
   const [searchTerm, setSearchTerm] = useState(searchParams.get('search') || '');
   const [selectedCategory, setSelectedCategory] = useState(searchParams.get('categoryId') || '');
   const [selectedStatus, setSelectedStatus] = useState(searchParams.get('status') || '');
@@ -71,7 +70,6 @@ export function ProductPageClient({ products, totalProducts, categories, supplie
     return () => clearTimeout(debounceTimer);
   }, [searchTerm, selectedCategory, selectedStatus, selectedStockLevel, pathname, router, searchParams]);
 
-  // Modais e produto a editar/excluir
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -83,7 +81,6 @@ export function ProductPageClient({ products, totalProducts, categories, supplie
   const handleOpenDeleteModal = (product: Product) => { setDeletingProduct(product); setIsDeleteModalOpen(true); };
   const handleCloseModals = () => { setIsModalOpen(false); setIsDeleteModalOpen(false); };
 
-  // FUNÇÃO DELETAR AJUSTADA!
   const handleDeleteConfirm = async () => {
     if (!deletingProduct) return;
 
@@ -95,24 +92,18 @@ export function ProductPageClient({ products, totalProducts, categories, supplie
       });
 
       if (!res.ok) {
-        // Tenta extrair a mensagem do backend (NestJS)
         let message = "Erro ao excluir produto!";
         try {
           const data = await res.json();
-          // O backend NestJS geralmente retorna { message: '...' }
           if (data && data.message) {
             message = Array.isArray(data.message) ? data.message.join("\n") : data.message;
           }
-        } catch {
-          // fallback
-        }
+        } catch { }
         throw new Error(message);
       }
 
       setIsDeleteModalOpen(false);
       setDeletingProduct(null);
-
-      // Atualiza a lista (Server Component revalida!)
       router.refresh();
     } catch (error: any) {
       alert(error.message || "Erro ao excluir produto!");
@@ -179,6 +170,7 @@ export function ProductPageClient({ products, totalProducts, categories, supplie
                 <th className="p-4 font-semibold text-gray-600">Estoque</th>
                 <th className="p-4 font-semibold text-gray-600">Preço</th>
                 <th className="p-4 font-semibold text-gray-600">Status</th>
+                <th className="p-4 font-semibold text-gray-600">Data Cadastro</th>
                 <th className="p-4 font-semibold text-gray-600 w-24">Ações</th>
               </tr>
             </thead>
@@ -201,6 +193,17 @@ export function ProductPageClient({ products, totalProducts, categories, supplie
                         {product.status.charAt(0).toUpperCase() + product.status.slice(1).toLowerCase()}
                       </span>
                     </td>
+                    <td className="p-4 text-gray-600">
+                      {product.createdAt
+                        ? new Date(product.createdAt).toLocaleString('pt-BR', {
+                          day: '2-digit',
+                          month: '2-digit',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })
+                        : '-'}
+                    </td>
                     <td className="p-4">
                       <div className="flex gap-4">
                         <button onClick={() => handleOpenEditModal(product)} className="text-gray-400 hover:text-blue-600"><Pencil size={18} /></button>
@@ -214,7 +217,6 @@ export function ProductPageClient({ products, totalProducts, categories, supplie
           </table>
         </div>
 
-        {/* Componente de Paginação */}
         <Pagination currentPage={currentPage} totalPages={totalPages} />
       </div>
     </>
