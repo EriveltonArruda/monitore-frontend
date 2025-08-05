@@ -145,6 +145,7 @@ export function AccountsPayableClient({ initialAccounts, totalAccounts }: Accoun
       params.set('month', selectedMonth);
     } else {
       params.delete('month');
+      params.delete('year'); // limpa o ano ao selecionar todos os meses
     }
     params.set('page', '1');
     router.push(`?${params.toString()}`);

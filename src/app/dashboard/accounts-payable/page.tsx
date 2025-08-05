@@ -32,15 +32,12 @@ export default async function AccountsPayablePage({
   const page = resolvedSearchParams['page'] ?? '1';
 
   // Captura mês/ano atual caso não venha na URL
-  const now = new Date();
-  const currentMonth = String(now.getMonth() + 1).padStart(2, '0'); // '07'
-  const currentYear = String(now.getFullYear()); // '2025'
-
-  const month = resolvedSearchParams['month'] ?? currentMonth;
-  const year = resolvedSearchParams['year'] ?? currentYear;
+  const month = resolvedSearchParams['month'] ?? '';
+  const year = resolvedSearchParams['year'] ?? '';
 
   params.append('page', String(page));
   params.append('limit', '10');
+
   if (month) params.append('month', String(month));
   if (year) params.append('year', String(year));
   // NOVO: adiciona o status se veio da URL (e não for 'TODOS')
