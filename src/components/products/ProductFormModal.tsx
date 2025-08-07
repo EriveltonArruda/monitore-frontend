@@ -1,21 +1,17 @@
-// CORREÇÃO: "Estoque Atual" só leitura e removido campo de Preço de Venda.
 "use client";
 
 import { X } from 'lucide-react';
-import { useState, FormEvent, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, FormEvent, useEffect, ChangeEvent } from 'react';
 
-// Tipos para os dados que o modal recebe
 type Category = { id: number; name: string; };
 type Supplier = { id: number; name: string; };
-
 type Product = {
   id: number; name: string; sku: string | null; description: string | null;
-  stockQuantity: number; minStockQuantity: number; salePrice: number;
+  stockQuantity: number; minStockQuantity: number;
   costPrice: number | null; location: string | null; status: string;
   categoryId: number | null; supplierId: number | null;
+  mainImageUrl?: string | null;
 };
-
 type ProductFormModalProps = {
   onClose: () => void;
   onSuccess: () => void;
@@ -24,15 +20,27 @@ type ProductFormModalProps = {
   productToEdit?: Product | null;
 };
 
-export function ProductFormModal({ onClose, onSuccess, categories, suppliers, productToEdit }: ProductFormModalProps) {
+export function ProductFormModal({
+  onClose,
+  onSuccess,
+  categories,
+  suppliers,
+  productToEdit,
+}: ProductFormModalProps) {
   const isEditMode = Boolean(productToEdit);
 
-  // Estado inicial do formulário
+  // Estado do formulário
   const [formData, setFormData] = useState({
     name: '', sku: '', description: '', categoryId: '', status: 'ATIVO',
-    stockQuantity: 0, minStockQuantity: 10, /* salePrice REMOVIDO */ costPrice: 0,
+    stockQuantity: 0, minStockQuantity: 10, costPrice: 0,
     supplierId: '', location: '',
+    mainImageUrl: '', // Apenas mainImageUrl
   });
+
+  // Estados para upload e preview
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
 
   // Preenche o formulário se estiver editando
   useEffect(() => {
@@ -45,39 +53,80 @@ export function ProductFormModal({ onClose, onSuccess, categories, suppliers, pr
         status: productToEdit.status || 'ATIVO',
         stockQuantity: productToEdit.stockQuantity || 0,
         minStockQuantity: productToEdit.minStockQuantity || 10,
-        // salePrice: productToEdit.salePrice || 0, // REMOVIDO
         costPrice: productToEdit.costPrice || 0,
         supplierId: String(productToEdit.supplierId || ''),
         location: productToEdit.location || '',
+        mainImageUrl: productToEdit.mainImageUrl || '',
       });
+      // Preview inicial da imagem se já cadastrada
+      if (productToEdit.mainImageUrl) setImagePreview(productToEdit.mainImageUrl);
     }
   }, [isEditMode, productToEdit]);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Manipula campos de texto/select
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     setFormData({ ...formData, [e.target.id]: e.target.value });
   };
 
+  // Manipula upload da imagem
+  const handleImageChange = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files && e.target.files[0];
+    setImageFile(file || null);
+
+    if (file) {
+      setImagePreview(URL.createObjectURL(file));
+      if (isEditMode && productToEdit) {
+        await uploadImageToApi(file, productToEdit.id);
+      }
+    }
+  };
+
+  // Função para upload via API NestJS
+  const uploadImageToApi = async (file: File, productId: number) => {
+    setUploading(true);
+    setError(null);
+    try {
+      const formDataUpload = new FormData();
+      formDataUpload.append('file', file);
+      const res = await fetch(`http://localhost:3001/products/${productId}/upload-image`, {
+        method: 'POST',
+        body: formDataUpload,
+      });
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.message || 'Falha ao enviar imagem');
+      }
+      const data = await res.json();
+      setFormData(prev => ({ ...prev, mainImageUrl: data.imageUrl }));
+      setImagePreview(data.imageUrl);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  // Submit do formulário
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setIsSubmitting(true);
     setError(null);
 
-    // Monta o objeto para enviar (REMOVIDO salePrice)
     const dataToSend = {
       ...formData,
       categoryId: parseInt(formData.categoryId, 10),
       supplierId: formData.supplierId ? parseInt(formData.supplierId, 10) : undefined,
       stockQuantity: parseInt(String(formData.stockQuantity), 10),
       minStockQuantity: parseInt(String(formData.minStockQuantity), 10),
-      // salePrice: parseFloat(String(formData.salePrice)), // REMOVIDO
       costPrice: formData.costPrice ? parseFloat(String(formData.costPrice)) : undefined,
+      mainImageUrl: formData.mainImageUrl || undefined,
     };
 
     try {
-      let response;
+      let response, createdId;
       if (isEditMode) {
         if (!productToEdit) throw new Error("Erro: Produto para edição não foi encontrado.");
         const url = `http://localhost:3001/products/${productToEdit.id}`;
@@ -86,6 +135,7 @@ export function ProductFormModal({ onClose, onSuccess, categories, suppliers, pr
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(dataToSend),
         });
+        createdId = productToEdit.id;
       } else {
         const url = 'http://localhost:3001/products';
         response = await fetch(url, {
@@ -93,11 +143,19 @@ export function ProductFormModal({ onClose, onSuccess, categories, suppliers, pr
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(dataToSend),
         });
+        if (response.ok) {
+          const product = await response.json();
+          createdId = product.id;
+        }
       }
-
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.message || 'Falha ao salvar produto.');
+      }
+
+      // Se foi criado agora e tem imagem, faz upload
+      if (!isEditMode && createdId && imageFile) {
+        await uploadImageToApi(imageFile, createdId);
       }
 
       onSuccess();
@@ -122,6 +180,35 @@ export function ProductFormModal({ onClose, onSuccess, categories, suppliers, pr
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto">
+          {/* Upload de Imagem com Preview */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Imagem do Produto</label>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handleImageChange}
+              className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+              disabled={isSubmitting || uploading}
+            />
+            {/* Preview da imagem já existente ou nova */}
+            {imagePreview && (
+              <div className="mt-2">
+                <img
+                  src={imagePreview.startsWith('/uploads') ? `http://localhost:3001${imagePreview}` : imagePreview}
+                  alt="Produto"
+                  className="max-h-32 rounded shadow border border-gray-200"
+                />
+              </div>
+            )}
+            {/* Se não tem upload, mas tem no banco, mostra também */}
+            {!imagePreview && formData.mainImageUrl && (
+              <div className="mt-2">
+                <img src={`http://localhost:3001${formData.mainImageUrl}`} alt="Produto" className="max-h-32 rounded shadow border border-gray-200" />
+              </div>
+            )}
+          </div>
+
+          {/* RESTANTE DO FORM IGUAL */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">Nome do Produto *</label>
@@ -136,7 +223,6 @@ export function ProductFormModal({ onClose, onSuccess, categories, suppliers, pr
             <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">Descrição</label>
             <textarea id="description" value={formData.description} onChange={handleChange} rows={3} placeholder="Descrição detalhada do produto" className="w-full border border-gray-300 rounded-md shadow-sm p-2"></textarea>
           </div>
-
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label htmlFor="categoryId" className="block text-sm font-medium text-gray-700 mb-1">Categoria *</label>
@@ -153,9 +239,7 @@ export function ProductFormModal({ onClose, onSuccess, categories, suppliers, pr
               </select>
             </div>
           </div>
-
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* ESTOQUE ATUAL APENAS LEITURA */}
             <div>
               <label htmlFor="stockQuantity" className="block text-sm font-medium text-gray-700 mb-1">Estoque Atual</label>
               <input
@@ -163,8 +247,8 @@ export function ProductFormModal({ onClose, onSuccess, categories, suppliers, pr
                 id="stockQuantity"
                 name="stockQuantity"
                 value={formData.stockQuantity}
-                readOnly // Torna o campo só leitura
-                disabled // Desabilita para não parecer editável
+                readOnly
+                disabled
                 className="w-full border border-gray-200 rounded-md shadow-sm p-2 bg-gray-100 text-gray-500 cursor-not-allowed"
                 tabIndex={-1}
               />
@@ -175,9 +259,6 @@ export function ProductFormModal({ onClose, onSuccess, categories, suppliers, pr
               <input type="number" id="minStockQuantity" name="minStockQuantity" value={formData.minStockQuantity} onChange={handleChange} className="w-full border border-gray-300 rounded-md shadow-sm p-2" />
             </div>
           </div>
-
-          {/* REMOVIDO BLOCO DE PREÇO DE VENDA */}
-
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label htmlFor="costPrice" className="block text-sm font-medium text-gray-700 mb-1">Preço de Custo</label>
@@ -203,22 +284,19 @@ export function ProductFormModal({ onClose, onSuccess, categories, suppliers, pr
               </select>
             </div>
           </div>
-
           <div>
             <label htmlFor="location" className="block text-sm font-medium text-gray-700 mb-1">Localização</label>
             <input type="text" id="location" name="location" value={formData.location} onChange={handleChange} placeholder="Localização no estoque" className="w-full border border-gray-300 rounded-md shadow-sm p-2" />
           </div>
-
           {error && (
             <div className="text-red-600 text-sm">{error}</div>
           )}
-
           <div className="flex justify-end gap-4 pt-6 border-t border-gray-200 mt-6">
-            <button type="button" onClick={onClose} disabled={isSubmitting} className="py-2 px-4 border border-gray-300 rounded-lg text-gray-700 font-semibold hover:bg-gray-100">
+            <button type="button" onClick={onClose} disabled={isSubmitting || uploading} className="py-2 px-4 border border-gray-300 rounded-lg text-gray-700 font-semibold hover:bg-gray-100">
               Cancelar
             </button>
-            <button type="submit" disabled={isSubmitting} className="py-2 px-4 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 disabled:bg-blue-300">
-              {isSubmitting ? 'Salvando...' : (isEditMode ? 'Salvar Alterações' : 'Criar Produto')}
+            <button type="submit" disabled={isSubmitting || uploading} className="py-2 px-4 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 disabled:bg-blue-300">
+              {isSubmitting ? 'Salvando...' : (isEditMode ? 'Salvar Alterações' : uploading ? 'Enviando Imagem...' : 'Criar Produto')}
             </button>
           </div>
         </form>

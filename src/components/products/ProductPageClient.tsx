@@ -2,10 +2,45 @@
 
 import React, { useState, useEffect } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { PlusCircle, Search, Pencil, Trash2 } from 'lucide-react';
+import { PlusCircle, Search, Pencil, Trash2, Eye } from 'lucide-react';
 import { ProductFormModal } from './ProductFormModal';
 import { DeleteConfirmationModal } from '../DeleteConfirmationModal';
 import { Pagination } from '../Pagination';
+
+// Novo: Modal para visualizar imagem
+function ProductImageModal({ product, onClose }: { product: Product | null, onClose: () => void }) {
+  if (!product) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
+      <div className="bg-white rounded-xl shadow-lg max-w-xs w-full flex flex-col items-center relative p-6">
+        <button
+          className="absolute right-4 top-4 text-gray-400 hover:text-gray-600"
+          onClick={onClose}
+        >
+          <span className="sr-only">Fechar</span>
+          <svg width={24} height={24} viewBox="0 0 20 20" fill="none"><path d="M6 6l8 8M6 14L14 6" stroke="currentColor" strokeWidth={2} strokeLinecap="round" /></svg>
+        </button>
+        <h2 className="text-lg font-bold mb-2 text-center">{product.name}</h2>
+        {product.mainImageUrl ? (
+          <img
+            src={
+              product.mainImageUrl?.startsWith('/uploads')
+                ? `http://localhost:3001${product.mainImageUrl}`
+                : product.mainImageUrl || ''
+            }
+            alt={product.name}
+            className="max-h-64 max-w-full rounded shadow border border-gray-100 object-contain bg-gray-50"
+          />
+        ) : (
+          <div className="flex items-center justify-center h-48 w-48 bg-gray-100 text-gray-400 rounded">
+            <span>Sem imagem cadastrada</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 type Category = { id: number; name: string; };
 type Supplier = { id: number; name: string; };
@@ -24,7 +59,8 @@ type Product = {
   location: string | null;
   categoryId: number | null;
   supplierId: number | null;
-  createdAt: string; // NOVO CAMPO
+  createdAt: string;
+  mainImageUrl?: string | null; // <-- campo de imagem principal
 };
 
 type ProductPageClientProps = {
@@ -76,10 +112,17 @@ export function ProductPageClient({ products, totalProducts, categories, supplie
   const [deletingProduct, setDeletingProduct] = useState<Product | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // Novo: modal de visualização de imagem
+  const [imageModalProduct, setImageModalProduct] = useState<Product | null>(null);
+
   const handleOpenCreateModal = () => { setEditingProduct(null); setIsModalOpen(true); };
   const handleOpenEditModal = (product: Product) => { setEditingProduct(product); setIsModalOpen(true); };
   const handleOpenDeleteModal = (product: Product) => { setDeletingProduct(product); setIsDeleteModalOpen(true); };
   const handleCloseModals = () => { setIsModalOpen(false); setIsDeleteModalOpen(false); };
+
+  // Novo: abrir modal da imagem
+  const handleOpenImageModal = (product: Product) => setImageModalProduct(product);
+  const handleCloseImageModal = () => setImageModalProduct(null);
 
   const handleDeleteConfirm = async () => {
     if (!deletingProduct) return;
@@ -124,6 +167,11 @@ export function ProductPageClient({ products, totalProducts, categories, supplie
     <>
       {isModalOpen && (<ProductFormModal onClose={handleCloseModals} onSuccess={() => router.refresh()} categories={categories} suppliers={suppliers} productToEdit={editingProduct} />)}
       {isDeleteModalOpen && deletingProduct && (<DeleteConfirmationModal itemName={deletingProduct.name} onConfirm={handleDeleteConfirm} onClose={handleCloseModals} isDeleting={isDeleting} />)}
+
+      {/* Novo: modal de visualização da imagem */}
+      {imageModalProduct && (
+        <ProductImageModal product={imageModalProduct} onClose={handleCloseImageModal} />
+      )}
 
       <div className="max-w-7xl mx-auto">
         {/* Cabeçalho da Página */}
@@ -171,7 +219,7 @@ export function ProductPageClient({ products, totalProducts, categories, supplie
                 <th className="p-4 font-semibold text-gray-600">Preço</th>
                 <th className="p-4 font-semibold text-gray-600">Status</th>
                 <th className="p-4 font-semibold text-gray-600">Data Cadastro</th>
-                <th className="p-4 font-semibold text-gray-600 w-24">Ações</th>
+                <th className="p-4 font-semibold text-gray-600 w-28">Ações</th>
               </tr>
             </thead>
             <tbody>
@@ -205,7 +253,14 @@ export function ProductPageClient({ products, totalProducts, categories, supplie
                         : '-'}
                     </td>
                     <td className="p-4">
-                      <div className="flex gap-4">
+                      <div className="flex gap-3">
+                        <button
+                          onClick={() => handleOpenImageModal(product)}
+                          className="text-gray-400 hover:text-indigo-600"
+                          title="Visualizar imagem"
+                        >
+                          <Eye size={18} />
+                        </button>
                         <button onClick={() => handleOpenEditModal(product)} className="text-gray-400 hover:text-blue-600"><Pencil size={18} /></button>
                         <button onClick={() => handleOpenDeleteModal(product)} className="text-gray-400 hover:text-red-600"><Trash2 size={18} /></button>
                       </div>
