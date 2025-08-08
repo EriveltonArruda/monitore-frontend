@@ -1,6 +1,5 @@
 "use client";
 
-import { useRef } from 'react';
 import {
   Boxes,
   DollarSign,
@@ -23,8 +22,6 @@ import {
   Line,
   CartesianGrid,
 } from 'recharts';
-import { PDFDownloadLink } from '@react-pdf/renderer'; // Importa o componente de download
-import { ReportPDFDocument } from './ReportPDFDocument'; // Importa nosso documento PDF
 
 // Tipos para os dados recebidos como props
 type ReportData = {
@@ -39,10 +36,36 @@ type ReportData = {
   movementsLast7Days: { date: string; count: number }[];
 };
 
-export function ReportsClient({ data }: { data: ReportData }) {
-  const formatCurrency = (value: number) =>
-    value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+const API_BASE = 'http://localhost:3001';
 
+function formatCurrencyBR(value: number) {
+  return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+function tsFilename(prefix: string, ext: 'pdf' | 'xlsx') {
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}`;
+  return `${prefix}_${stamp}.${ext}`;
+}
+
+async function download(url: string, filename: string) {
+  const res = await fetch(url);
+  if (!res.ok) {
+    const msg = await res.text().catch(() => '');
+    throw new Error(msg || 'Falha ao baixar arquivo');
+  }
+  const blob = await res.blob();
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(a.href);
+}
+
+export function ReportsClient({ data }: { data: ReportData }) {
   const PIE_COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#AF19FF'];
 
   return (
@@ -54,35 +77,37 @@ export function ReportsClient({ data }: { data: ReportData }) {
           <p className="text-sm text-gray-500">Análise completa do seu estoque e movimentações</p>
         </div>
         <div className="flex items-center gap-2">
-          <button className="bg-white border border-gray-300 hover:bg-gray-100 text-gray-800 font-semibold py-2 px-4 rounded-lg flex items-center gap-2">
-            <span>Visão Geral</span>
+          <button className="bg-white border border-gray-300 hover:bg-gray-100 text-gray-800 font-semibold py-2 px-4 rounded-lg">
+            Visão Geral
           </button>
-          {/* BOTÃO DE EXPORTAR ATUALIZADO */}
-          <PDFDownloadLink
-            document={<ReportPDFDocument data={data} />}
-            fileName="relatorio-estoque.pdf"
+
+          {/* Exportações reais via backend */}
+          <button
+            onClick={() => download(`${API_BASE}/products/export-pdf`, tsFilename('relatorio_produtos', 'pdf'))}
             className="bg-white border border-gray-300 hover:bg-gray-100 text-gray-800 font-semibold py-2 px-4 rounded-lg flex items-center gap-2"
+            title="Exportar lista de produtos em PDF"
           >
-            {({ blob, url, loading, error }) =>
-              loading ? (
-                'Gerando PDF...'
-              ) : (
-                <>
-                  <Download size={16} />
-                  <span>Exportar</span>
-                </>
-              )
-            }
-          </PDFDownloadLink>
+            <Download size={16} />
+            <span>Exportar PDF (Produtos)</span>
+          </button>
+
+          <button
+            onClick={() => download(`${API_BASE}/products/export-excel`, tsFilename('relatorio_produtos', 'xlsx'))}
+            className="bg-white border border-gray-300 hover:bg-gray-100 text-gray-800 font-semibold py-2 px-4 rounded-lg flex items-center gap-2"
+            title="Exportar lista de produtos em Excel"
+          >
+            <Download size={16} />
+            <span>Exportar Excel (Produtos)</span>
+          </button>
         </div>
       </div>
 
-      {/* Container que mostra os relatórios na tela (não será exportado) */}
+      {/* Conteúdo da página (somente visual) */}
       <div className="space-y-8">
         {/* Cards de Resumo */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           <SummaryCard icon={Boxes} title="Total de Produtos" value={data.summaryCards.totalProducts.toString()} />
-          <SummaryCard icon={DollarSign} title="Valor do Estoque" value={formatCurrency(data.summaryCards.stockValue)} />
+          <SummaryCard icon={DollarSign} title="Valor do Estoque" value={formatCurrencyBR(data.summaryCards.stockValue)} />
           <SummaryCard icon={ArrowRightLeft} title="Movimentações" value={data.summaryCards.totalMovements.toString()} />
           <SummaryCard icon={TriangleAlert} title="Estoque Baixo" value={data.summaryCards.lowStockProducts.toString()} isAlert />
         </div>
@@ -109,8 +134,8 @@ export function ReportsClient({ data }: { data: ReportData }) {
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={data.valueByCategory}>
                 <XAxis dataKey="name" />
-                <YAxis tickFormatter={(value) => formatCurrency(value as number)} />
-                <Tooltip formatter={(value) => formatCurrency(value as number)} />
+                <YAxis tickFormatter={(v) => formatCurrencyBR(v as number)} />
+                <Tooltip formatter={(v) => formatCurrencyBR(v as number)} />
                 <Legend />
                 <Bar dataKey="value" fill="#8884d8" name="Valor em Estoque" />
               </BarChart>

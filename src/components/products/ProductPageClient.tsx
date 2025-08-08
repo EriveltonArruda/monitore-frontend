@@ -7,13 +7,26 @@ import { ProductFormModal } from './ProductFormModal';
 import { DeleteConfirmationModal } from '../DeleteConfirmationModal';
 import { Pagination } from '../Pagination';
 
-// Novo: Modal para visualizar imagem
+const API_BASE = 'http://localhost:3001';
+
+// Modal para visualizar imagem
 function ProductImageModal({ product, onClose }: { product: Product | null, onClose: () => void }) {
   if (!product) return null;
 
+  const src = product.mainImageUrl
+    ? (product.mainImageUrl.startsWith('/uploads')
+      ? `${API_BASE}${product.mainImageUrl}`
+      : product.mainImageUrl)
+    : '';
+
+  const stop = (e: React.MouseEvent) => e.stopPropagation();
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
-      <div className="bg-white rounded-xl shadow-lg max-w-xs w-full flex flex-col items-center relative p-6">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70"
+      onClick={onClose} // fecha ao clicar fora
+    >
+      <div className="bg-white rounded-xl shadow-lg max-w-xs w-full flex flex-col items-center relative p-6" onClick={stop}>
         <button
           className="absolute right-4 top-4 text-gray-400 hover:text-gray-600"
           onClick={onClose}
@@ -24,11 +37,7 @@ function ProductImageModal({ product, onClose }: { product: Product | null, onCl
         <h2 className="text-lg font-bold mb-2 text-center">{product.name}</h2>
         {product.mainImageUrl ? (
           <img
-            src={
-              product.mainImageUrl?.startsWith('/uploads')
-                ? `http://localhost:3001${product.mainImageUrl}`
-                : product.mainImageUrl || ''
-            }
+            src={src}
             alt={product.name}
             className="max-h-64 max-w-full rounded shadow border border-gray-100 object-contain bg-gray-50"
           />
@@ -50,7 +59,7 @@ type Product = {
   sku: string | null;
   stockQuantity: number;
   minStockQuantity: number;
-  salePrice: number;
+  // salePrice removido do sistema
   status: string;
   category: Category | null;
   supplier: Supplier | null;
@@ -60,7 +69,7 @@ type Product = {
   categoryId: number | null;
   supplierId: number | null;
   createdAt: string;
-  mainImageUrl?: string | null; // <-- campo de imagem principal
+  mainImageUrl?: string | null;
 };
 
 type ProductPageClientProps = {
@@ -85,18 +94,14 @@ export function ProductPageClient({ products, totalProducts, categories, supplie
   useEffect(() => {
     const params = new URLSearchParams(searchParams.toString());
     const updateParam = (key: string, value: string) => {
-      if (value) {
-        params.set(key, value);
-      } else {
-        params.delete(key);
-      }
+      if (value) params.set(key, value);
+      else params.delete(key);
     };
 
     updateParam('search', searchTerm);
     updateParam('categoryId', selectedCategory);
     updateParam('status', selectedStatus);
     updateParam('stockLevel', selectedStockLevel);
-
     params.set('page', '1');
 
     const debounceTimer = setTimeout(() => {
@@ -112,7 +117,7 @@ export function ProductPageClient({ products, totalProducts, categories, supplie
   const [deletingProduct, setDeletingProduct] = useState<Product | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Novo: modal de visualização de imagem
+  // Modal de visualização de imagem
   const [imageModalProduct, setImageModalProduct] = useState<Product | null>(null);
 
   const handleOpenCreateModal = () => { setEditingProduct(null); setIsModalOpen(true); };
@@ -120,7 +125,6 @@ export function ProductPageClient({ products, totalProducts, categories, supplie
   const handleOpenDeleteModal = (product: Product) => { setDeletingProduct(product); setIsDeleteModalOpen(true); };
   const handleCloseModals = () => { setIsModalOpen(false); setIsDeleteModalOpen(false); };
 
-  // Novo: abrir modal da imagem
   const handleOpenImageModal = (product: Product) => setImageModalProduct(product);
   const handleCloseImageModal = () => setImageModalProduct(null);
 
@@ -130,10 +134,7 @@ export function ProductPageClient({ products, totalProducts, categories, supplie
     setIsDeleting(true);
 
     try {
-      const res = await fetch(`http://localhost:3001/products/${deletingProduct.id}`, {
-        method: "DELETE",
-      });
-
+      const res = await fetch(`${API_BASE}/products/${deletingProduct.id}`, { method: "DELETE" });
       if (!res.ok) {
         let message = "Erro ao excluir produto!";
         try {
@@ -158,17 +159,32 @@ export function ProductPageClient({ products, totalProducts, categories, supplie
   const formatCurrency = (value: number | null) => {
     if (value === null || typeof value === 'undefined') return 'R$ 0,00';
     return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-  }
+  };
 
   const totalPages = Math.ceil(totalProducts / ITEMS_PER_PAGE);
   const currentPage = Number(searchParams.get('page')) || 1;
 
   return (
     <>
-      {isModalOpen && (<ProductFormModal onClose={handleCloseModals} onSuccess={() => router.refresh()} categories={categories} suppliers={suppliers} productToEdit={editingProduct} />)}
-      {isDeleteModalOpen && deletingProduct && (<DeleteConfirmationModal itemName={deletingProduct.name} onConfirm={handleDeleteConfirm} onClose={handleCloseModals} isDeleting={isDeleting} />)}
+      {isModalOpen && (
+        <ProductFormModal
+          onClose={handleCloseModals}
+          onSuccess={() => router.refresh()}
+          categories={categories}
+          suppliers={suppliers}
+          productToEdit={editingProduct}
+        />
+      )}
+      {isDeleteModalOpen && deletingProduct && (
+        <DeleteConfirmationModal
+          itemName={deletingProduct.name}
+          onConfirm={handleDeleteConfirm}
+          onClose={handleCloseModals}
+          isDeleting={isDeleting}
+        />
+      )}
 
-      {/* Novo: modal de visualização da imagem */}
+      {/* Modal de visualização da imagem */}
       {imageModalProduct && (
         <ProductImageModal product={imageModalProduct} onClose={handleCloseImageModal} />
       )}
@@ -180,27 +196,53 @@ export function ProductPageClient({ products, totalProducts, categories, supplie
             <h1 className="text-3xl font-bold text-gray-800">Produtos</h1>
             <p className="text-sm text-gray-500">Gerencie todos os produtos do seu estoque</p>
           </div>
-          <button onClick={handleOpenCreateModal} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2">
-            <PlusCircle size={20} /><span>Novo Produto</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleOpenCreateModal}
+              className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2"
+            >
+              <PlusCircle size={20} /><span>Novo Produto</span>
+            </button>
+          </div>
         </div>
 
         {/* Barra de Filtros */}
         <div className="bg-white p-4 rounded-xl shadow-sm mb-8 flex items-center gap-4">
           <div className="relative flex-grow">
             <Search size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input type="text" placeholder="Pesquisar..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full h-10 pl-10 pr-4 border border-gray-200 rounded-lg" />
+            <input
+              type="text"
+              placeholder="Pesquisar..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full h-10 pl-10 pr-4 border border-gray-200 rounded-lg"
+            />
           </div>
-          <select title='Todas as categorias' value={selectedCategory} onChange={(e) => setSelectedCategory(e.target.value)} className="h-10 border border-gray-200 rounded-lg bg-white px-2 text-gray-700">
+          <select
+            title='Todas as categorias'
+            value={selectedCategory}
+            onChange={(e) => setSelectedCategory(e.target.value)}
+            className="h-10 border border-gray-200 rounded-lg bg-white px-2 text-gray-700"
+          >
             <option value="">Todas Categorias</option>
             {categories.map(cat => <option key={cat.id} value={String(cat.id)}>{cat.name}</option>)}
           </select>
-          <select title='Todos os status' value={selectedStatus} onChange={(e) => setSelectedStatus(e.target.value)} className="h-10 border border-gray-200 rounded-lg bg-white px-2 text-gray-700">
+          <select
+            title='Todos os status'
+            value={selectedStatus}
+            onChange={(e) => setSelectedStatus(e.target.value)}
+            className="h-10 border border-gray-200 rounded-lg bg-white px-2 text-gray-700"
+          >
             <option value="">Todos Status</option>
             <option value="ATIVO">Ativo</option>
             <option value="INATIVO">Inativo</option>
           </select>
-          <select title='Todos os níveis de estoque' value={selectedStockLevel} onChange={(e) => setSelectedStockLevel(e.target.value)} className="h-10 border border-gray-200 rounded-lg bg-white px-2 text-gray-700">
+          <select
+            title='Todos os níveis de estoque'
+            value={selectedStockLevel}
+            onChange={(e) => setSelectedStockLevel(e.target.value)}
+            className="h-10 border border-gray-200 rounded-lg bg-white px-2 text-gray-700"
+          >
             <option value="">Todos Níveis</option>
             <option value="low">Estoque Baixo</option>
             <option value="normal">Estoque Normal</option>
@@ -216,7 +258,7 @@ export function ProductPageClient({ products, totalProducts, categories, supplie
                 <th className="p-4 font-semibold text-gray-600">SKU</th>
                 <th className="p-4 font-semibold text-gray-600">Categoria</th>
                 <th className="p-4 font-semibold text-gray-600">Estoque</th>
-                <th className="p-4 font-semibold text-gray-600">Preço</th>
+                <th className="p-4 font-semibold text-gray-600">Preço de Custo</th>
                 <th className="p-4 font-semibold text-gray-600">Status</th>
                 <th className="p-4 font-semibold text-gray-600">Data Cadastro</th>
                 <th className="p-4 font-semibold text-gray-600 w-28">Ações</th>
@@ -235,7 +277,7 @@ export function ProductPageClient({ products, totalProducts, categories, supplie
                         {product.stockQuantity}
                       </span>
                     </td>
-                    <td className="p-4 text-gray-600">{formatCurrency(product.salePrice)}</td>
+                    <td className="p-4 text-gray-600">{formatCurrency(product.costPrice)}</td>
                     <td className="p-4">
                       <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${product.status === 'ATIVO' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                         {product.status.charAt(0).toUpperCase() + product.status.slice(1).toLowerCase()}
