@@ -138,14 +138,22 @@ export function AccountsPayableClient({ initialAccounts, totalAccounts }: Accoun
     router.push(`?${params.toString()}`);
   };
 
+  // >>> AJUSTE: se escolher mês sem escolher ano, define ano atual
   const handleMonthChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const params = new URLSearchParams(searchParams.toString());
     const selectedMonth = e.target.value;
+
     if (selectedMonth) {
       params.set('month', selectedMonth);
+
+      const currentYear = String(new Date().getFullYear());
+      if (!params.get('year') || params.get('year') === '') {
+        params.set('year', currentYear);
+      }
     } else {
+      // mês em branco = limpar mês e ano
       params.delete('month');
-      params.delete('year'); // limpa o ano ao selecionar todos os meses
+      params.delete('year');
     }
     params.set('page', '1');
     router.push(`?${params.toString()}`);
@@ -157,6 +165,7 @@ export function AccountsPayableClient({ initialAccounts, totalAccounts }: Accoun
     if (selectedYear) {
       params.set('year', selectedYear);
     } else {
+      // “Todos os anos”: mantém como vazio (SSR vai decidir o que fazer)
       params.delete('year');
     }
     params.set('page', '1');

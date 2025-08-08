@@ -29,28 +29,35 @@ export default async function AccountsPayablePage({
   const resolvedSearchParams = await searchParams;
 
   const params = new URLSearchParams();
-  const page = resolvedSearchParams['page'] ?? '1';
 
-  // Captura mês/ano atual caso não venha na URL
-  const month = resolvedSearchParams['month'] ?? '';
-  const year = resolvedSearchParams['year'] ?? '';
+  const getOne = (v: string | string[] | undefined, fallback = '') =>
+    Array.isArray(v) ? (v[0] ?? fallback) : (v ?? fallback);
+
+  const page = getOne(resolvedSearchParams['page'], '1');
+
+  let month = getOne(resolvedSearchParams['month'], '');
+  let year = getOne(resolvedSearchParams['year'], '');
+
+  // se veio mês sem ano, define ano atual
+  if (month && !year) {
+    year = String(new Date().getFullYear());
+  }
 
   params.append('page', String(page));
   params.append('limit', '10');
 
   if (month) params.append('month', String(month));
   if (year) params.append('year', String(year));
-  // NOVO: adiciona o status se veio da URL (e não for 'TODOS')
-  const status = resolvedSearchParams['status'];
+
+  const status = getOne(resolvedSearchParams['status']);
   if (status && status !== 'TODOS') {
     params.append('status', String(status));
   }
 
-  const category = resolvedSearchParams['category'] ?? '';
+  const category = getOne(resolvedSearchParams['category']);
   if (category) params.append('category', String(category));
 
-  // NOVO: inclui o search, se houver
-  const search = resolvedSearchParams['search'] ?? '';
+  const search = getOne(resolvedSearchParams['search']);
   if (search && String(search).trim() !== '') {
     params.append('search', String(search));
   }
