@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo } from 'react';
-import { PlusCircle, Pencil, Trash2, CheckCircle, AlertCircle, XCircle, Clock, History } from 'lucide-react';
+import { PlusCircle, Pencil, Trash2, CheckCircle, AlertCircle, XCircle, Clock, History, Printer } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { AccountFormModal } from './AccountFormModal';
 import { DeleteConfirmationModal } from '../DeleteConfirmationModal';
@@ -35,6 +35,30 @@ type AccountsPayableClientProps = {
 
 const ITEMS_PER_PAGE = 10;
 
+// helpers de download
+async function download(url: string, filename: string) {
+  const res = await fetch(url);
+  if (!res.ok) {
+    const msg = await res.text().catch(() => '');
+    throw new Error(msg || 'Falha ao baixar arquivo');
+  }
+  const blob = await res.blob();
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(a.href);
+}
+
+function tsFilename(prefix: string, ext: 'pdf') {
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}`;
+  return `${prefix}_${stamp}.${ext}`;
+}
+
 export function AccountsPayableClient({ initialAccounts, totalAccounts }: AccountsPayableClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -51,7 +75,7 @@ export function AccountsPayableClient({ initialAccounts, totalAccounts }: Accoun
   const category = searchParams.get('category') || 'TODAS';
   const search = searchParams.get('search') || '';
 
-  // Gera as opções únicas de categoria da listagem
+  // Opções únicas de categoria da listagem
   const categoryOptions = useMemo(() => {
     const unique: string[] = [];
     for (const acc of initialAccounts) {
@@ -89,9 +113,7 @@ export function AccountsPayableClient({ initialAccounts, totalAccounts }: Accoun
     if (!deletingAccount) return;
     setIsDeleting(true);
     try {
-      await fetch(`http://localhost:3001/accounts-payable/${deletingAccount.id}`, {
-        method: 'DELETE',
-      });
+      await fetch(`http://localhost:3001/accounts-payable/${deletingAccount.id}`, { method: 'DELETE' });
       router.refresh();
       handleCloseModals();
     } catch (error) {
@@ -112,12 +134,8 @@ export function AccountsPayableClient({ initialAccounts, totalAccounts }: Accoun
     }
   };
 
-  const formatStatusText = (status: string) => {
-    return status
-      .toLowerCase()
-      .replace(/_/g, ' ')
-      .replace(/\b\w/g, (char) => char.toUpperCase());
-  };
+  const formatStatusText = (status: string) =>
+    status.toLowerCase().replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
 
   const totalPages = Math.ceil(totalAccounts / ITEMS_PER_PAGE);
   const currentPage = Number(searchParams.get('page')) || 1;
@@ -125,33 +143,26 @@ export function AccountsPayableClient({ initialAccounts, totalAccounts }: Accoun
   const month = searchParams.get('month') || '';
   const year = searchParams.get('year') || '';
 
-  // Handler do campo de busca
+  // Handlers filtros
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const params = new URLSearchParams(searchParams.toString());
     const value = e.target.value;
-    if (value && value.trim() !== '') {
-      params.set('search', value);
-    } else {
-      params.delete('search');
-    }
+    if (value && value.trim() !== '') params.set('search', value);
+    else params.delete('search');
     params.set('page', '1');
     router.push(`?${params.toString()}`);
   };
 
-  // >>> AJUSTE: se escolher mês sem escolher ano, define ano atual
+  // se escolher mês sem ano, define ano atual; limpar mês limpa ano
   const handleMonthChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const params = new URLSearchParams(searchParams.toString());
     const selectedMonth = e.target.value;
 
     if (selectedMonth) {
       params.set('month', selectedMonth);
-
       const currentYear = String(new Date().getFullYear());
-      if (!params.get('year') || params.get('year') === '') {
-        params.set('year', currentYear);
-      }
+      if (!params.get('year') || params.get('year') === '') params.set('year', currentYear);
     } else {
-      // mês em branco = limpar mês e ano
       params.delete('month');
       params.delete('year');
     }
@@ -162,12 +173,8 @@ export function AccountsPayableClient({ initialAccounts, totalAccounts }: Accoun
   const handleYearChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const params = new URLSearchParams(searchParams.toString());
     const selectedYear = e.target.value;
-    if (selectedYear) {
-      params.set('year', selectedYear);
-    } else {
-      // “Todos os anos”: mantém como vazio (SSR vai decidir o que fazer)
-      params.delete('year');
-    }
+    if (selectedYear) params.set('year', selectedYear);
+    else params.delete('year');
     params.set('page', '1');
     router.push(`?${params.toString()}`);
   };
@@ -175,11 +182,8 @@ export function AccountsPayableClient({ initialAccounts, totalAccounts }: Accoun
   const handleStatusChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const params = new URLSearchParams(searchParams.toString());
     const selectedStatus = e.target.value;
-    if (selectedStatus && selectedStatus !== 'TODOS') {
-      params.set('status', selectedStatus);
-    } else {
-      params.delete('status');
-    }
+    if (selectedStatus && selectedStatus !== 'TODOS') params.set('status', selectedStatus);
+    else params.delete('status');
     params.set('page', '1');
     router.push(`?${params.toString()}`);
   };
@@ -187,11 +191,8 @@ export function AccountsPayableClient({ initialAccounts, totalAccounts }: Accoun
   const handleCategoryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const params = new URLSearchParams(searchParams.toString());
     const selectedCategory = e.target.value;
-    if (selectedCategory && selectedCategory !== 'TODAS') {
-      params.set('category', selectedCategory);
-    } else {
-      params.delete('category');
-    }
+    if (selectedCategory && selectedCategory !== 'TODAS') params.set('category', selectedCategory);
+    else params.delete('category');
     params.set('page', '1');
     router.push(`?${params.toString()}`);
   };
@@ -263,7 +264,6 @@ export function AccountsPayableClient({ initialAccounts, totalAccounts }: Accoun
 
         {/* Filtros */}
         <div className="flex gap-4 mb-6">
-          {/* Campo de busca */}
           <input
             type="text"
             placeholder="Buscar por nome..."
@@ -273,53 +273,20 @@ export function AccountsPayableClient({ initialAccounts, totalAccounts }: Accoun
             title="Buscar pelo nome da conta"
           />
 
-          <select
-            title="Selecione o mês"
-            value={month}
-            onChange={handleMonthChange}
-            className="border rounded-lg px-3 py-2"
-          >
-            {monthOptions.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
+          <select title="Selecione o mês" value={month} onChange={handleMonthChange} className="border rounded-lg px-3 py-2">
+            {monthOptions.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
           </select>
-          <select
-            title="Selecione o ano"
-            value={year}
-            onChange={handleYearChange}
-            className="border rounded-lg px-3 py-2"
-          >
-            {yearOptions.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
+
+          <select title="Selecione o ano" value={year} onChange={handleYearChange} className="border rounded-lg px-3 py-2">
+            {yearOptions.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
           </select>
-          {/* Filtro de status */}
-          <select
-            title="Selecione o status"
-            value={status}
-            onChange={handleStatusChange}
-            className="border rounded-lg px-3 py-2"
-          >
-            {statusOptions.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
+
+          <select title="Selecione o status" value={status} onChange={handleStatusChange} className="border rounded-lg px-3 py-2">
+            {statusOptions.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
           </select>
-          {/* Filtro de categoria */}
-          <select
-            title="Selecione a categoria"
-            value={category}
-            onChange={handleCategoryChange}
-            className="border rounded-lg px-3 py-2"
-          >
-            {categoryOptions.map(opt => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
-            ))}
+
+          <select title="Selecione a categoria" value={category} onChange={handleCategoryChange} className="border rounded-lg px-3 py-2">
+            {categoryOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
           </select>
         </div>
 
@@ -332,7 +299,7 @@ export function AccountsPayableClient({ initialAccounts, totalAccounts }: Accoun
                 <th className="p-4 font-semibold text-gray-600">Valor</th>
                 <th className="p-4 font-semibold text-gray-600">Vencimento</th>
                 <th className="p-4 font-semibold text-gray-600">Status</th>
-                <th className="p-4 font-semibold text-gray-600 w-32">Ações</th>
+                <th className="p-4 font-semibold text-gray-600 w-40">Ações</th>
               </tr>
             </thead>
             <tbody>
@@ -354,27 +321,20 @@ export function AccountsPayableClient({ initialAccounts, totalAccounts }: Accoun
                   <tr key={account.id} className="border-b hover:bg-gray-50 last:border-b-0">
                     <td className="p-4 font-medium text-gray-800">
                       {account.name}
-                      <span
-                        className={`ml-2 text-xs font-semibold px-2.5 py-0.5 rounded-full ${installmentClass}`}
-                      >
+                      <span className={`ml-2 text-xs font-semibold px-2.5 py-0.5 rounded-full ${installmentClass}`}>
                         {installmentLabel}
                       </span>
                     </td>
                     <td className="p-4 text-gray-600">{account.category}</td>
                     <td className="p-4 text-gray-600">
-                      {account.value.toLocaleString('pt-BR', {
-                        style: 'currency',
-                        currency: 'BRL',
-                      })}
+                      {account.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                     </td>
                     <td className="p-4 text-gray-600">
                       {format(new Date(account.dueDate), "dd/MM/yyyy", { locale: ptBR })}
                     </td>
                     <td className="p-4">
                       <div className="inline-flex flex-col gap-1">
-                        <span
-                          className={`inline-flex w-fit items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${getStatusClass(account.status)}`}
-                        >
+                        <span className={`inline-flex w-fit items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${getStatusClass(account.status)}`}>
                           {account.status === 'PAGO' && <CheckCircle size={14} className="text-green-700" />}
                           {account.status === 'VENCIDO' && <XCircle size={14} className="text-red-700" />}
                           {account.status === 'A_PAGAR' && <AlertCircle size={14} className="text-yellow-700" />}
@@ -398,6 +358,16 @@ export function AccountsPayableClient({ initialAccounts, totalAccounts }: Accoun
                         >
                           <History size={18} />
                         </button>
+
+                        {/* NOVO: imprimir conta individual (PDF) */}
+                        <button
+                          onClick={() => download(`http://localhost:3001/accounts-payable/${account.id}/export-pdf`, tsFilename(`conta_${account.id}`, 'pdf'))}
+                          className="text-gray-400 hover:text-indigo-600"
+                          title="Imprimir conta (PDF)"
+                        >
+                          <Printer size={18} />
+                        </button>
+
                         <button
                           onClick={() => handleOpenEditModal(account)}
                           className="text-gray-400 hover:text-blue-600"

@@ -8,6 +8,22 @@ import { Pagination } from "@/components/Pagination";
 import { RequireModule } from "@/components/RequireModule";
 import { UserModule } from "@/types/UserModule";
 
+const API_BASE = "http://localhost:3001";
+
+// Helper genérico de download
+async function download(url: string, filename: string) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error("Falha ao baixar arquivo");
+  const blob = await res.blob();
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(a.href);
+}
+
 // Lista fixa de categorias para o filtro (ajuste conforme necessário)
 const categoryOptions = [
   { value: "TODAS", label: "Todas as Categorias" },
@@ -43,29 +59,25 @@ type ReportItem = {
 };
 
 export default function AccountsPayableReportsPage() {
-  // Estados dos dados, loading, filtros
   const [data, setData] = useState<ReportItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
-  const limit = 12; // meses por página
+  const limit = 12;
 
   const currentYear = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState(currentYear);
-  const yearOptions = [];
-  for (let y = currentYear; y >= currentYear - 5; y--) {
-    yearOptions.push(y);
-  }
+  const yearOptions: number[] = [];
+  for (let y = currentYear; y >= currentYear - 5; y--) yearOptions.push(y);
 
   const [selectedCategory, setSelectedCategory] = useState("TODAS");
-  const [selectedMonth, setSelectedMonth] = useState(""); // Novo filtro de mês
+  const [selectedMonth, setSelectedMonth] = useState(""); // "01".."12" ou ""
 
-  // Lê o valor da página da URL (?page=2)
   const searchParams = useSearchParams();
   const pageParam = searchParams.get("page");
   const currentPage = pageParam ? Number(pageParam) : 1;
 
-  // Busca os dados do relatório sempre que filtro/página mudar
+  // Busca dados para a tabela (via rota Next que você já tem)
   useEffect(() => {
     setLoading(true);
     const url = `/api/accounts-payable/reports/month?year=${selectedYear}&category=${selectedCategory}&page=${currentPage}&limit=${limit}`;
@@ -79,19 +91,18 @@ export default function AccountsPayableReportsPage() {
       .finally(() => setLoading(false));
   }, [selectedYear, selectedCategory, currentPage]);
 
-  // Função para exibir o mês em extenso
   function formatMonth(monthString: string) {
     const [year, month] = monthString.split("-");
     const date = parse(`${year}-${month}-01`, "yyyy-MM-dd", new Date());
     return format(date, "MMMM/yyyy", { locale: ptBR });
   }
 
-  // Novo: filtra pelo mês selecionado
+  // Filtro local por mês
   const filteredData = selectedMonth
-    ? data.filter(item => item.month.endsWith(`-${selectedMonth}`))
+    ? data.filter((item) => item.month.endsWith(`-${selectedMonth}`))
     : data;
 
-  // Calcula os totais gerais dos dados exibidos na página atual
+  // Totais da página atual
   const totals = filteredData.reduce(
     (acc, item) => {
       acc.count += item.count;
@@ -102,6 +113,28 @@ export default function AccountsPayableReportsPage() {
     },
     { count: 0, total: 0, paid: 0, pending: 0 }
   );
+
+  // >>> NOVO: Exportar PDF chamando o Nest (porta 3001) com os filtros atuais
+  const handleExportPdf = async () => {
+    const params = new URLSearchParams();
+    // Se quiser considerar o selectedMonth na exportação global, convertemos "01" -> "1"
+    if (selectedMonth) params.set("month", String(Number(selectedMonth)));
+    if (selectedYear) params.set("year", String(selectedYear));
+    if (selectedCategory && selectedCategory !== "TODAS") {
+      params.set("category", selectedCategory);
+    }
+    // (Opcional) se quiser suportar status aqui no futuro: params.set('status', ...)
+
+    const url = `${API_BASE}/accounts-payable/export-pdf?${params.toString()}`;
+    const filename = `relatorio_contas_a_pagar_${selectedYear}${selectedMonth ? "-" + selectedMonth : ""}.pdf`;
+
+    try {
+      await download(url, filename);
+    } catch (err) {
+      console.error(err);
+      alert("Falha ao baixar o PDF. Verifique se o backend (3001) está rodando.");
+    }
+  };
 
   return (
     <RequireModule module={UserModule.RELATORIO_CONTAS_PAGAR}>
@@ -114,6 +147,14 @@ export default function AccountsPayableReportsPage() {
               Veja o resumo mensal das suas contas, valores pagos e pendentes
             </p>
           </div>
+
+          {/* Botão de exportar PDF */}
+          <button
+            onClick={handleExportPdf}
+            className="h-10 px-4 rounded-lg border text-gray-700 hover:bg-gray-50"
+          >
+            Exportar PDF
+          </button>
         </div>
 
         {/* Filtros */}
@@ -124,45 +165,47 @@ export default function AccountsPayableReportsPage() {
             <select
               id="ano"
               value={selectedYear}
-              onChange={e => setSelectedYear(Number(e.target.value))}
+              onChange={(e) => setSelectedYear(Number(e.target.value))}
               className="border rounded-lg px-3 py-2"
             >
-              {yearOptions.map(year => (
+              {yearOptions.map((year) => (
                 <option key={year} value={year}>{year}</option>
               ))}
             </select>
           </div>
+
           {/* Categoria */}
           <div className="flex items-center gap-2">
             <label htmlFor="categoria" className="text-sm text-gray-700">Categoria:</label>
             <select
               id="categoria"
               value={selectedCategory}
-              onChange={e => setSelectedCategory(e.target.value)}
+              onChange={(e) => setSelectedCategory(e.target.value)}
               className="border rounded-lg px-3 py-2"
             >
-              {categoryOptions.map(opt => (
+              {categoryOptions.map((opt) => (
                 <option key={opt.value} value={opt.value}>{opt.label}</option>
               ))}
             </select>
           </div>
+
           {/* Mês */}
           <div className="flex items-center gap-2">
             <label htmlFor="mes" className="text-sm text-gray-700">Mês:</label>
             <select
               id="mes"
               value={selectedMonth}
-              onChange={e => setSelectedMonth(e.target.value)}
+              onChange={(e) => setSelectedMonth(e.target.value)}
               className="border rounded-lg px-3 py-2"
             >
-              {monthOptions.map(opt => (
+              {monthOptions.map((opt) => (
                 <option key={opt.value} value={opt.value}>{opt.label}</option>
               ))}
             </select>
           </div>
         </div>
 
-        {/* Card de totais gerais */}
+        {/* Totais gerais */}
         {filteredData.length > 0 && (
           <div className="mt-6 grid grid-cols-1 sm:grid-cols-4 gap-4">
             <div className="bg-gray-50 rounded-lg p-4 flex flex-col items-center">
@@ -190,7 +233,7 @@ export default function AccountsPayableReportsPage() {
           </div>
         )}
 
-        {/* Card da tabela de relatório */}
+        {/* Tabela */}
         <div className="bg-white p-4 rounded-xl shadow-sm mt-6">
           <table className="w-full table-auto">
             <thead className="text-left border-b-2 border-gray-100">
@@ -205,15 +248,11 @@ export default function AccountsPayableReportsPage() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={5} className="p-4 text-center text-gray-400">
-                    Carregando...
-                  </td>
+                  <td colSpan={5} className="p-4 text-center text-gray-400">Carregando...</td>
                 </tr>
               ) : filteredData.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="p-4 text-center text-gray-400">
-                    Nenhum dado para exibir.
-                  </td>
+                  <td colSpan={5} className="p-4 text-center text-gray-400">Nenhum dado para exibir.</td>
                 </tr>
               ) : (
                 filteredData.map((item) => (
@@ -236,13 +275,9 @@ export default function AccountsPayableReportsPage() {
           </table>
         </div>
 
-        {/* Paginação */}
         {totalPages > 1 && (
           <div className="mt-4">
-            <Pagination
-              currentPage={currentPage}
-              totalPages={totalPages}
-            />
+            <Pagination currentPage={currentPage} totalPages={totalPages} />
           </div>
         )}
       </div>
