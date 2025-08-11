@@ -3,6 +3,8 @@
 import { X } from 'lucide-react';
 import { useState, FormEvent, useEffect, ChangeEvent } from 'react';
 
+const API_BASE = 'http://localhost:3001';
+
 type Category = { id: number; name: string; };
 type Supplier = { id: number; name: string; };
 type Product = {
@@ -29,20 +31,19 @@ export function ProductFormModal({
 }: ProductFormModalProps) {
   const isEditMode = Boolean(productToEdit);
 
-  // Estado do formulário
   const [formData, setFormData] = useState({
     name: '', sku: '', description: '', categoryId: '', status: 'ATIVO',
     stockQuantity: 0, minStockQuantity: 10, costPrice: 0,
     supplierId: '', location: '',
-    mainImageUrl: '', // Apenas mainImageUrl
+    mainImageUrl: '',
   });
 
-  // Estados para upload e preview
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Preenche o formulário se estiver editando
   useEffect(() => {
     if (isEditMode && productToEdit) {
       setFormData({
@@ -58,20 +59,14 @@ export function ProductFormModal({
         location: productToEdit.location || '',
         mainImageUrl: productToEdit.mainImageUrl || '',
       });
-      // Preview inicial da imagem se já cadastrada
       if (productToEdit.mainImageUrl) setImagePreview(productToEdit.mainImageUrl);
     }
   }, [isEditMode, productToEdit]);
 
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  // Manipula campos de texto/select
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     setFormData({ ...formData, [e.target.id]: e.target.value });
   };
 
-  // Manipula upload da imagem
   const handleImageChange = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files && e.target.files[0];
     setImageFile(file || null);
@@ -84,19 +79,18 @@ export function ProductFormModal({
     }
   };
 
-  // Função para upload via API NestJS
   const uploadImageToApi = async (file: File, productId: number) => {
     setUploading(true);
     setError(null);
     try {
       const formDataUpload = new FormData();
       formDataUpload.append('file', file);
-      const res = await fetch(`http://localhost:3001/products/${productId}/upload-image`, {
+      const res = await fetch(`${API_BASE}/products/${productId}/upload-image`, {
         method: 'POST',
         body: formDataUpload,
       });
       if (!res.ok) {
-        const errorData = await res.json();
+        const errorData = await res.json().catch(() => ({} as any));
         throw new Error(errorData.message || 'Falha ao enviar imagem');
       }
       const data = await res.json();
@@ -109,7 +103,29 @@ export function ProductFormModal({
     }
   };
 
-  // Submit do formulário
+  const handleRemoveImage = async () => {
+    if (!isEditMode || !productToEdit) return;
+    if (!formData.mainImageUrl) return;
+
+    if (!confirm('Remover imagem do produto?')) return;
+
+    try {
+      const res = await fetch(`${API_BASE}/products/${productToEdit.id}/main-image`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({} as any));
+        throw new Error(errorData.message || 'Falha ao remover imagem');
+      }
+
+      setFormData(prev => ({ ...prev, mainImageUrl: '' }));
+      setImagePreview(null);
+      setImageFile(null);
+    } catch (err: any) {
+      alert(err.message || 'Erro ao remover imagem');
+    }
+  };
+
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setIsSubmitting(true);
@@ -128,8 +144,8 @@ export function ProductFormModal({
     try {
       let response, createdId;
       if (isEditMode) {
-        if (!productToEdit) throw new Error("Erro: Produto para edição não foi encontrado.");
-        const url = `http://localhost:3001/products/${productToEdit.id}`;
+        if (!productToEdit) throw new Error('Erro: Produto para edição não foi encontrado.');
+        const url = `${API_BASE}/products/${productToEdit.id}`;
         response = await fetch(url, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
@@ -137,7 +153,7 @@ export function ProductFormModal({
         });
         createdId = productToEdit.id;
       } else {
-        const url = 'http://localhost:3001/products';
+        const url = `${API_BASE}/products`;
         response = await fetch(url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -148,12 +164,13 @@ export function ProductFormModal({
           createdId = product.id;
         }
       }
+
       if (!response.ok) {
-        const errorData = await response.json();
+        const errorData = await response.json().catch(() => ({} as any));
         throw new Error(errorData.message || 'Falha ao salvar produto.');
       }
 
-      // Se foi criado agora e tem imagem, faz upload
+      // Se criou agora e tem imagem escolhida, envia upload
       if (!isEditMode && createdId && imageFile) {
         await uploadImageToApi(imageFile, createdId);
       }
@@ -166,6 +183,11 @@ export function ProductFormModal({
       setIsSubmitting(false);
     }
   };
+
+  const resolvedPreview =
+    imagePreview
+      ? (imagePreview.startsWith('/uploads') ? `${API_BASE}${imagePreview}` : imagePreview)
+      : (formData.mainImageUrl ? `${API_BASE}${formData.mainImageUrl}` : null);
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
@@ -180,72 +202,81 @@ export function ProductFormModal({
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto">
-          {/* Upload de Imagem com Preview */}
+          {/* Upload + Preview + Remover */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Imagem do Produto</label>
-            <input
-              type="file"
-              accept="image/*"
-              onChange={handleImageChange}
-              className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-              disabled={isSubmitting || uploading}
-            />
-            {/* Preview da imagem já existente ou nova */}
-            {imagePreview && (
+            <div className="flex items-start gap-4">
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleImageChange}
+                className="block text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                disabled={isSubmitting || uploading}
+              />
+              {isEditMode && formData.mainImageUrl && (
+                <button
+                  type="button"
+                  onClick={handleRemoveImage}
+                  className="block text-sm text-red-500 font-semibold rounded-full border-0 py-2 px-4 bg-gray-100 hover:bg-red-500 hover:text-white"
+                  disabled={isSubmitting || uploading}
+                  title="Remover imagem"
+                >
+                  Remover imagem
+                </button>
+              )}
+            </div>
+
+            {resolvedPreview && (
               <div className="mt-2">
                 <img
-                  src={imagePreview.startsWith('/uploads') ? `http://localhost:3001${imagePreview}` : imagePreview}
+                  src={resolvedPreview}
                   alt="Produto"
                   className="max-h-32 rounded shadow border border-gray-200"
                 />
               </div>
             )}
-            {/* Se não tem upload, mas tem no banco, mostra também */}
-            {!imagePreview && formData.mainImageUrl && (
-              <div className="mt-2">
-                <img src={`http://localhost:3001${formData.mainImageUrl}`} alt="Produto" className="max-h-32 rounded shadow border border-gray-200" />
-              </div>
-            )}
           </div>
 
-          {/* RESTANTE DO FORM IGUAL */}
+          {/* Demais campos */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">Nome do Produto *</label>
-              <input type="text" id="name" value={formData.name} onChange={handleChange} required placeholder="Digite o nome do produto" className="w-full border border-gray-300 rounded-md shadow-sm p-2" />
+              <input type="text" id="name" value={formData.name} onChange={handleChange} required className="w-full border border-gray-300 rounded-md shadow-sm p-2" />
             </div>
             <div>
               <label htmlFor="sku" className="block text-sm font-medium text-gray-700 mb-1">SKU *</label>
-              <input type="text" id="sku" value={formData.sku} onChange={handleChange} required placeholder="Código único do produto" className="w-full border border-gray-300 rounded-md shadow-sm p-2" />
+              <input type="text" id="sku" value={formData.sku} onChange={handleChange} required className="w-full border border-gray-300 rounded-md shadow-sm p-2" />
             </div>
           </div>
+
           <div>
             <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">Descrição</label>
-            <textarea id="description" value={formData.description} onChange={handleChange} rows={3} placeholder="Descrição detalhada do produto" className="w-full border border-gray-300 rounded-md shadow-sm p-2"></textarea>
+            <textarea id="description" value={formData.description} onChange={handleChange} rows={3} className="w-full border border-gray-300 rounded-md shadow-sm p-2"></textarea>
           </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label htmlFor="categoryId" className="block text-sm font-medium text-gray-700 mb-1">Categoria *</label>
-              <select id="categoryId" name="categoryId" value={formData.categoryId} onChange={handleChange} required className="w-full border border-gray-300 rounded-md shadow-sm p-2 bg-white">
+              <select id="categoryId" value={formData.categoryId} onChange={handleChange} required className="w-full border border-gray-300 rounded-md shadow-sm p-2 bg-white">
                 <option value="">Selecione uma categoria</option>
                 {categories.map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
               </select>
             </div>
             <div>
               <label htmlFor="status" className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-              <select id="status" name="status" value={formData.status} onChange={handleChange} className="w-full border border-gray-300 rounded-md shadow-sm p-2 bg-white">
+              <select id="status" value={formData.status} onChange={handleChange} className="w-full border border-gray-300 rounded-md shadow-sm p-2 bg-white">
                 <option value="ATIVO">Ativo</option>
                 <option value="INATIVO">Inativo</option>
               </select>
             </div>
           </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label htmlFor="stockQuantity" className="block text-sm font-medium text-gray-700 mb-1">Estoque Atual</label>
               <input
                 type="number"
                 id="stockQuantity"
-                name="stockQuantity"
                 value={formData.stockQuantity}
                 readOnly
                 disabled
@@ -256,19 +287,19 @@ export function ProductFormModal({
             </div>
             <div>
               <label htmlFor="minStockQuantity" className="block text-sm font-medium text-gray-700 mb-1">Estoque Mínimo</label>
-              <input type="number" id="minStockQuantity" name="minStockQuantity" value={formData.minStockQuantity} onChange={handleChange} className="w-full border border-gray-300 rounded-md shadow-sm p-2" />
+              <input type="number" id="minStockQuantity" value={formData.minStockQuantity} onChange={handleChange} className="w-full border border-gray-300 rounded-md shadow-sm p-2" />
             </div>
           </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label htmlFor="costPrice" className="block text-sm font-medium text-gray-700 mb-1">Preço de Custo</label>
-              <input type="number" id="costPrice" name="costPrice" value={formData.costPrice} onChange={handleChange} step="0.01" className="w-full border border-gray-300 rounded-md shadow-sm p-2" />
+              <input type="number" id="costPrice" value={formData.costPrice} onChange={handleChange} step="0.01" className="w-full border border-gray-300 rounded-md shadow-sm p-2" />
             </div>
             <div>
               <label htmlFor="supplierId" className="block text-sm font-medium text-gray-700 mb-1">Fornecedor</label>
               <select
                 id="supplierId"
-                name="supplierId"
                 value={formData.supplierId}
                 onChange={handleChange}
                 className="w-full border border-gray-300 rounded-md shadow-sm p-2 bg-white"
@@ -284,13 +315,14 @@ export function ProductFormModal({
               </select>
             </div>
           </div>
+
           <div>
             <label htmlFor="location" className="block text-sm font-medium text-gray-700 mb-1">Localização</label>
-            <input type="text" id="location" name="location" value={formData.location} onChange={handleChange} placeholder="Localização no estoque" className="w-full border border-gray-300 rounded-md shadow-sm p-2" />
+            <input type="text" id="location" value={formData.location} onChange={handleChange} className="w-full border border-gray-300 rounded-md shadow-sm p-2" />
           </div>
-          {error && (
-            <div className="text-red-600 text-sm">{error}</div>
-          )}
+
+          {error && <div className="text-red-600 text-sm">{error}</div>}
+
           <div className="flex justify-end gap-4 pt-6 border-t border-gray-200 mt-6">
             <button type="button" onClick={onClose} disabled={isSubmitting || uploading} className="py-2 px-4 border border-gray-300 rounded-lg text-gray-700 font-semibold hover:bg-gray-100">
               Cancelar
