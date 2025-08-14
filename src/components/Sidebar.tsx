@@ -16,6 +16,8 @@ import {
   Contact,
   Users,
   BarChart2,
+  Plane,           // ⟵ novo ícone (lucide)
+  FilePieChart,    // ⟵ novo ícone (lucide)
 } from 'lucide-react';
 
 import { UserModule } from "@/types/UserModule";
@@ -36,6 +38,13 @@ const managementNavLinks = [
   { href: '/dashboard/accounts-payable/reports', label: 'Relatório de Contas', icon: BarChart2, module: UserModule.RELATORIO_CONTAS_PAGAR },
   { href: '/dashboard/contacts', label: 'Lista de Contatos', icon: Contact, module: UserModule.CONTATOS },
   { href: '/dashboard/users', label: 'Gerenciar Usuários', icon: Users, module: UserModule.USUARIOS },
+
+  // ✅ Novos itens
+  // Obs.: usando CONTAS_PAGAR como permissão base para não quebrar seu enum.
+  // Se depois você criar UserModule.TRAVEL_EXPENSES / TRAVEL_EXPENSES_REPORT,
+  // é só trocar aqui.
+  { href: '/dashboard/travel-expenses', label: 'Despesas de Viagem', icon: Plane, module: UserModule.CONTAS_PAGAR },
+  { href: '/dashboard/reports/travel-expenses', label: 'Relatório de Despesas', icon: FilePieChart, module: UserModule.RELATORIOS },
 ];
 
 export function Sidebar() {
