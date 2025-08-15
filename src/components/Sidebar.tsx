@@ -44,7 +44,7 @@ const managementNavLinks = [
   // Se depois você criar UserModule.TRAVEL_EXPENSES / TRAVEL_EXPENSES_REPORT,
   // é só trocar aqui.
   { href: '/dashboard/travel-expenses', label: 'Despesas de Viagem', icon: Plane, module: UserModule.CONTAS_PAGAR },
-  { href: '/dashboard/reports/travel-expenses', label: 'Relatório de Despesas', icon: FilePieChart, module: UserModule.RELATORIOS },
+  { href: '/dashboard/reports/travel-expenses', label: 'Relatório de Despesas (Em Construção)', icon: FilePieChart, module: UserModule.RELATORIOS },
 ];
 
 export function Sidebar() {

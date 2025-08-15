@@ -2,11 +2,22 @@
 
 import React, { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { PlusCircle, Pencil, Trash2, DollarSign } from "lucide-react";
-import { Pagination } from "../Pagination"; // mesmo padrão do AccountsPayableClient
+import {
+  PlusCircle,
+  Pencil,
+  Trash2,
+  DollarSign,
+  History,
+  HandCoins,
+  RotateCcw,
+} from "lucide-react";
+import { Pagination } from "../Pagination";
 import { TravelExpensesFormModal } from "./TravelExpensesFormModal";
 import { TravelReimbursementModal } from "./TravelReimbursementModal";
 import { DeleteConfirmationModal } from "../DeleteConfirmationModal";
+import { TravelReimbursementsHistoryModal } from "./TravelReimbursementsHistoryModal";
+import { TravelAdvanceModal } from "./TravelAdvanceModal";
+import { TravelReturnModal } from "./TravelReturnModal";
 
 type TravelExpense = {
   id: number;
@@ -21,6 +32,10 @@ type TravelExpense = {
   amount: number;
   reimbursedAmount: number;
   status: string;
+
+  // vindos do backend
+  advancesAmount?: number;
+  returnsAmount?: number;
 };
 
 // Helper: só a primeira letra maiúscula
@@ -42,7 +57,7 @@ export default function TravelExpensesPageClient({
   const [data, setData] = useState<TravelExpense[]>(initialData.data ?? []);
   const [total, setTotal] = useState<number>(initialData.total ?? 0);
 
-  // paginação (igual contas a pagar)
+  // paginação
   const currentPage = Number(searchParams.get("page")) || 1;
   const pageSize = Number(searchParams.get("pageSize")) || 10;
   const totalPages = Math.max(1, Math.ceil((total || 0) / pageSize));
@@ -61,10 +76,17 @@ export default function TravelExpensesPageClient({
   // modal de reembolso
   const [reimbExpense, setReimbExpense] = useState<TravelExpense | null>(null);
 
+  // modal de histórico
+  const [historyExpense, setHistoryExpense] = useState<TravelExpense | null>(null);
+
   // modal de exclusão
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [expenseToDelete, setExpenseToDelete] = useState<TravelExpense | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // modais: adiantamento / devolução
+  const [advanceExpense, setAdvanceExpense] = useState<TravelExpense | null>(null);
+  const [returnExpense, setReturnExpense] = useState<TravelExpense | null>(null);
 
   async function refresh() {
     const params = new URLSearchParams(searchParams as any);
@@ -154,12 +176,17 @@ export default function TravelExpensesPageClient({
     setEditingExpense(null);
   };
 
-  const openReimburse = (exp: TravelExpense) => {
-    setReimbExpense(exp);
-  };
-  const closeReimburse = () => {
-    setReimbExpense(null);
-  };
+  const openReimburse = (exp: TravelExpense) => setReimbExpense(exp);
+  const closeReimburse = () => setReimbExpense(null);
+
+  const openHistory = (exp: TravelExpense) => setHistoryExpense(exp);
+  const closeHistory = () => setHistoryExpense(null);
+
+  const openAdvance = (exp: TravelExpense) => setAdvanceExpense(exp);
+  const closeAdvance = () => setAdvanceExpense(null);
+
+  const openReturn = (exp: TravelExpense) => setReturnExpense(exp);
+  const closeReturn = () => setReturnExpense(null);
 
   // exclusão
   const openDelete = (exp: TravelExpense) => {
@@ -174,7 +201,6 @@ export default function TravelExpensesPageClient({
     if (!expenseToDelete) return;
     setIsDeleting(true);
     try {
-      // chama diretamente o backend (igual a outros pontos do projeto)
       const res = await fetch(`http://localhost:3001/travel-expenses/${expenseToDelete.id}`, {
         method: "DELETE",
       });
@@ -182,7 +208,9 @@ export default function TravelExpensesPageClient({
         const err = await res.json().catch(() => ({}));
         throw new Error(
           err?.message
-            ? Array.isArray(err.message) ? err.message.join("\n") : String(err.message)
+            ? Array.isArray(err.message)
+              ? err.message.join("\n")
+              : String(err.message)
             : "Falha ao excluir a despesa"
         );
       }
@@ -214,7 +242,12 @@ export default function TravelExpensesPageClient({
         <TravelReimbursementModal
           expenseId={reimbExpense.id}
           currency={reimbExpense.currency ?? "BRL"}
-          maxAmount={Math.max(0, (reimbExpense.amount ?? 0) - (reimbExpense.reimbursedAmount ?? 0))}
+          maxAmount={Math.max(
+            0,
+            (reimbExpense.amount ?? 0) -
+            (reimbExpense.advancesAmount ?? 0) -
+            (reimbExpense.reimbursedAmount ?? 0)
+          )}
           onClose={closeReimburse}
           onSaved={() => {
             closeReimburse();
@@ -223,17 +256,59 @@ export default function TravelExpensesPageClient({
         />
       )}
 
+      {/* Modal de histórico de reembolsos */}
+      {historyExpense && (
+        <TravelReimbursementsHistoryModal
+          expenseId={historyExpense.id}
+          currency={historyExpense.currency ?? "BRL"}
+          onClose={closeHistory}
+          onChanged={() => {
+            refresh();
+          }}
+        />
+      )}
+
+      {/* Modal de adiantamento */}
+      {advanceExpense && (
+        <TravelAdvanceModal
+          expenseId={advanceExpense.id}
+          currency={advanceExpense.currency ?? "BRL"}
+          onClose={closeAdvance}
+          onSaved={() => {
+            closeAdvance();
+            refresh();
+          }}
+        />
+      )}
+
+      {/* Modal de devolução */}
+      {returnExpense && (
+        <TravelReturnModal
+          expenseId={returnExpense.id}
+          currency={returnExpense.currency ?? "BRL"}
+          onClose={closeReturn}
+          onSaved={() => {
+            closeReturn();
+            refresh();
+          }}
+        />
+      )}
+
       {/* Modal de confirmação de exclusão */}
       {showDeleteModal && expenseToDelete && (
         <DeleteConfirmationModal
-          itemName={expenseToDelete.employeeName || expenseToDelete.description || `Despesa #${expenseToDelete.id}`}
+          itemName={
+            expenseToDelete.employeeName ||
+            expenseToDelete.description ||
+            `Despesa #${expenseToDelete.id}`
+          }
           onConfirm={confirmDelete}
           onClose={closeDelete}
           isDeleting={isDeleting}
         />
       )}
 
-      <div className="max-w-7xl mx-auto">
+      <div className="max-w-screen-2xl mx-auto px-6">
         {/* Header */}
         <div className="flex justify-between items-center mb-8">
           <div>
@@ -307,8 +382,8 @@ export default function TravelExpensesPageClient({
         </div>
 
         {/* Tabela */}
-        <div className="bg-white p-4 rounded-xl shadow-sm">
-          <table className="w-full table-auto">
+        <div className="bg-white p-4 rounded-xl shadow-sm overflow-x-auto">
+          <table className="w-full table-auto min-w-[1150px]">
             <thead className="text-left border-b-2 border-gray-100">
               <tr>
                 <th className="p-4 font-semibold text-gray-600">Funcionário</th>
@@ -316,9 +391,11 @@ export default function TravelExpensesPageClient({
                 <th className="p-4 font-semibold text-gray-600">Data</th>
                 <th className="p-4 font-semibold text-gray-600">Local</th>
                 <th className="p-4 font-semibold text-gray-600">Valor</th>
+                <th className="p-4 font-semibold text-gray-600">Adiantado</th>
+                <th className="p-4 font-semibold text-gray-600">Devolvido</th>
                 <th className="p-4 font-semibold text-gray-600">Reembolsado</th>
                 <th className="p-4 font-semibold text-gray-600">Status</th>
-                <th className="p-4 font-semibold text-gray-600 w-40">Ações</th>
+                <th className="p-4 font-semibold text-gray-600 w-[12rem]">Ações</th>
               </tr>
             </thead>
             <tbody>
@@ -339,14 +416,14 @@ export default function TravelExpensesPageClient({
                         ? "bg-pink-100 text-pink-700"
                         : "bg-gray-100 text-gray-700";
 
+                const currency = exp.currency ?? "BRL";
+
                 return (
                   <tr key={exp.id} className="border-b hover:bg-gray-50 last:border-b-0">
                     <td className="p-4 font-medium text-gray-800">
                       {exp.employeeName ?? "-"}
                       {exp.description && (
-                        <span className="ml-2 text-xs text-gray-500">
-                          • {exp.description}
-                        </span>
+                        <span className="ml-2 text-xs text-gray-500">• {exp.description}</span>
                       )}
                     </td>
 
@@ -358,26 +435,40 @@ export default function TravelExpensesPageClient({
                       </span>
                     </td>
 
-                    <td className="p-4 text-gray-600">
-                      {exp.expenseDate
-                        ? new Date(exp.expenseDate).toLocaleDateString()
-                        : "-"}
+                    <td className="p-4 text-gray-600 whitespace-nowrap">
+                      {exp.expenseDate ? new Date(exp.expenseDate).toLocaleDateString() : "-"}
                     </td>
 
                     <td className="p-4 text-gray-600">
                       {[exp.city, exp.state].filter(Boolean).join(" / ") || "-"}
                     </td>
 
-                    <td className="p-4 text-gray-600">
-                      {(exp.currency ?? "BRL")}{" "}
+                    <td className="p-4 text-gray-600 whitespace-nowrap">
+                      {currency}{" "}
                       {exp.amount.toLocaleString("pt-BR", {
                         minimumFractionDigits: 2,
                         maximumFractionDigits: 2,
                       })}
                     </td>
 
-                    <td className="p-4 text-gray-600">
-                      {(exp.currency ?? "BRL")}{" "}
+                    <td className="p-4 text-gray-600 whitespace-nowrap">
+                      {currency}{" "}
+                      {(exp.advancesAmount ?? 0).toLocaleString("pt-BR", {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}
+                    </td>
+
+                    <td className="p-4 text-gray-600 whitespace-nowrap">
+                      {currency}{" "}
+                      {(exp.returnsAmount ?? 0).toLocaleString("pt-BR", {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}
+                    </td>
+
+                    <td className="p-4 text-gray-600 whitespace-nowrap">
+                      {currency}{" "}
                       {exp.reimbursedAmount.toLocaleString("pt-BR", {
                         minimumFractionDigits: 2,
                         maximumFractionDigits: 2,
@@ -394,6 +485,25 @@ export default function TravelExpensesPageClient({
 
                     <td className="p-4">
                       <div className="flex gap-2">
+                        {/* Adiantamento */}
+                        <button
+                          className="text-gray-400 hover:text-indigo-600"
+                          title="Registrar adiantamento"
+                          onClick={() => openAdvance(exp)}
+                        >
+                          <HandCoins size={18} />
+                        </button>
+
+                        {/* Devolução */}
+                        <button
+                          className="text-gray-400 hover:text-emerald-600"
+                          title="Registrar devolução"
+                          onClick={() => openReturn(exp)}
+                        >
+                          <RotateCcw size={18} />
+                        </button>
+
+                        {/* Reembolso */}
                         <button
                           className="text-gray-400 hover:text-green-600"
                           title="Registrar reembolso"
@@ -401,6 +511,17 @@ export default function TravelExpensesPageClient({
                         >
                           <DollarSign size={18} />
                         </button>
+
+                        {/* Histórico de reembolsos */}
+                        <button
+                          className="text-gray-400 hover:text-amber-600"
+                          title="Histórico de reembolsos"
+                          onClick={() => openHistory(exp)}
+                        >
+                          <History size={18} />
+                        </button>
+
+                        {/* Editar */}
                         <button
                           className="text-gray-400 hover:text-blue-600"
                           title="Editar"
@@ -408,6 +529,8 @@ export default function TravelExpensesPageClient({
                         >
                           <Pencil size={18} />
                         </button>
+
+                        {/* Excluir */}
                         <button
                           className="text-gray-400 hover:text-red-600"
                           title="Excluir"
@@ -422,7 +545,7 @@ export default function TravelExpensesPageClient({
               })}
               {data.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="p-8 text-center text-gray-500">
+                  <td colSpan={10} className="p-8 text-center text-gray-500">
                     Nenhuma despesa encontrada.
                   </td>
                 </tr>
@@ -431,7 +554,7 @@ export default function TravelExpensesPageClient({
           </table>
         </div>
 
-        {/* paginação idêntica ao contas a pagar */}
+        {/* paginação */}
         <Pagination currentPage={currentPage} totalPages={totalPages} />
       </div>
     </>
