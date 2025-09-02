@@ -132,7 +132,7 @@ export function AccountFormModal({
       category: formData.category,
       value: parseFloat(String(formData.value)),
       dueDate: new Date(formData.dueDate + "T00:00:00"),
-      status: formData.status,
+      status: formData.status, // ALTERADO: garantimos enviar sempre o status escolhido
       installmentType: formData.installmentType,
       installments:
         formData.installmentType === "PARCELADO"
@@ -142,34 +142,38 @@ export function AccountFormModal({
         formData.installmentType === "PARCELADO"
           ? parseInt(formData.currentInstallment)
           : null,
-      isRecurring: formData.isRecurring,
+      // ALTERADO: recorrência só vale quando UNICA
+      isRecurring: formData.installmentType === "UNICA" ? formData.isRecurring : false,
       recurringUntil:
-        formData.isRecurring && formData.recurringUntil
+        formData.installmentType === "UNICA" &&
+          formData.isRecurring &&
+          formData.recurringUntil
           ? new Date(formData.recurringUntil + "T00:00:00")
           : null,
     };
 
-    // Se houver valor manual, inclua dados de pagamento
-    const rawAmount = formData.manualPaymentAmount.replace(",", ".");
+    // Normaliza valor manual (se houver)
+    const rawAmount = (formData.manualPaymentAmount || "").toString().replace(",", ".");
     const manual = parseFloat(rawAmount);
-    if (!isNaN(manual) && manual > 0) {
-      dataToSend.paymentAmount = rawAmount; // envia string, o backend normaliza
-      dataToSend.bankAccount = formData.manualBankAccount || null;
-      dataToSend.paidAt =
-        formData.paidAt && !isNaN(new Date(formData.paidAt).getTime())
-          ? new Date(formData.paidAt)
-          : new Date();
-    }
 
-    // Se marcar como PAGO (sem valor manual), gera pagamento do valor total
-    if (formData.status === "PAGO" && (isNaN(manual) || manual <= 0)) {
-      dataToSend.paymentAmount = String(formData.value);
+    // ALTERADO: Regras de envio de pagamento
+    // - Se status = A_PAGAR e tiver valor manual > 0 => manda paymentAmount (pagamento parcial)
+    // - Se status = PAGO e NÃO tiver valor manual => NÃO manda paymentAmount (backend quita o restante no update)
+    // - Se status = VENCIDO => não manda paymentAmount
+    if (formData.status === "A_PAGAR" && !isNaN(manual) && manual > 0) {
+      dataToSend.paymentAmount = rawAmount; // envia string; backend normaliza
       dataToSend.bankAccount = formData.manualBankAccount || null;
       dataToSend.paidAt =
         formData.paidAt && !isNaN(new Date(formData.paidAt).getTime())
           ? new Date(formData.paidAt)
           : new Date();
+    } else if (formData.status === "PAGO") {
+      // Sem paymentAmount aqui: backend trata quitação no update se trocou para PAGO
+      if (formData.paidAt) dataToSend.paidAt = new Date(formData.paidAt);
+      if (formData.manualBankAccount)
+        dataToSend.bankAccount = formData.manualBankAccount;
     }
+    // (status VENCIDO não envia valores de pagamento)
 
     try {
       let response: Response;
@@ -253,6 +257,7 @@ export function AccountFormModal({
               className="w-full border rounded-md p-2"
             />
           </div>
+
           {/* Valor e Categoria */}
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -286,6 +291,7 @@ export function AccountFormModal({
               />
             </div>
           </div>
+
           {/* Vencimento e Status */}
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -320,6 +326,7 @@ export function AccountFormModal({
               </select>
             </div>
           </div>
+
           {/* Parcelamento */}
           <div>
             <label
@@ -338,6 +345,7 @@ export function AccountFormModal({
               <option value="PARCELADO">Parcelado</option>
             </select>
           </div>
+
           {/* Campos só aparecem se for parcelado */}
           {formData.installmentType === "PARCELADO" && (
             <div className="grid grid-cols-2 gap-4">
@@ -375,6 +383,7 @@ export function AccountFormModal({
               </div>
             </div>
           )}
+
           {/* Checkbox de repetição mensal aparece só se for parcela única */}
           {formData.installmentType === "UNICA" && (
             <div className="flex items-center gap-2">
@@ -400,6 +409,7 @@ export function AccountFormModal({
               )}
             </div>
           )}
+
           {/* Pagamento manual (mantido só para status A_PAGAR, não mostra se status for PAGO!) */}
           {formData.status === "A_PAGAR" && (
             <>
@@ -427,16 +437,16 @@ export function AccountFormModal({
                   value={formData.manualBankAccount}
                   onChange={handleChange}
                   className="w-full border rounded-md p-2"
-                  placeholder="Ex: Banco do Brasil – Conta 12345‑6"
+                  placeholder="Ex: Banco do Brasil – Conta 12345-6"
                 />
               </div>
             </>
           )}
 
           {/* Campos de pagamento só para status "PAGO" OU quando valor manual é informado,
-    MAS só mostra o campo Conta Bancária aqui se status for PAGO! */}
+              MAS só mostra o campo Conta Bancária aqui se status for PAGO! */}
           {(formData.status === "PAGO" ||
-            parseFloat(formData.manualPaymentAmount.replace(",", ".")) > 0) && (
+            parseFloat((formData.manualPaymentAmount || "0").toString().replace(",", ".")) > 0) && (
               <>
                 <div>
                   <label htmlFor="paidAt" className="block text-sm font-medium mb-1">
@@ -462,12 +472,13 @@ export function AccountFormModal({
                       value={formData.manualBankAccount}
                       onChange={handleChange}
                       className="w-full border rounded-md p-2"
-                      placeholder="Ex: Banco do Brasil – Conta 12345‑6"
+                      placeholder="Ex: Banco do Brasil – Conta 12345-6"
                     />
                   </div>
                 )}
               </>
             )}
+
           {error && <p className="text-sm text-red-500">{error}</p>}
           <div className="flex justify-end gap-4 pt-4 border-t mt-4">
             <button

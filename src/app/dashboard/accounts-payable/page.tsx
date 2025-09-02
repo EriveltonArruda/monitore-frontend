@@ -1,7 +1,9 @@
+// Página (Server Component) que busca a lista paginada e entrega ao client component
 import { AccountsPayableClient } from '@/components/accounts-payable/AccountsPayableClient';
 import { RequireModule } from "@/components/RequireModule";
 import { UserModule } from "@/types/UserModule";
 
+// Tipagem refletindo os novos campos que o backend agora envia
 type AccountPayable = {
   id: number;
   name: string;
@@ -9,8 +11,17 @@ type AccountPayable = {
   value: number;
   dueDate: string;
   status: string;
+  // campos já existentes que podem chegar
+  installmentType?: string;
+  installments?: number | null;
+  currentInstallment?: number | null;
+  payments?: { id: number; paidAt: string }[];
+  // NOVO: campos de alerta (opcionais)
+  daysToDue?: number;
+  alertTag?: 'VENCIDO' | 'D-3' | 'D-7' | null;
 };
 
+// Função server-side para buscar a lista paginada com filtros vindos da URL
 async function getPaginatedAccounts(params: URLSearchParams) {
   const response = await fetch(`http://localhost:3001/accounts-payable?${params.toString()}`, {
     cache: 'no-store',
@@ -26,10 +37,11 @@ export default async function AccountsPayablePage({
 }: {
   searchParams: { [key: string]: string | string[] | undefined };
 }) {
+  // Normaliza searchParams (Next pode entregar como string|string[]|undefined)
   const resolvedSearchParams = await searchParams;
 
+  // Monta query para o backend com base nos filtros
   const params = new URLSearchParams();
-
   const getOne = (v: string | string[] | undefined, fallback = '') =>
     Array.isArray(v) ? (v[0] ?? fallback) : (v ?? fallback);
 
@@ -38,7 +50,7 @@ export default async function AccountsPayablePage({
   let month = getOne(resolvedSearchParams['month'], '');
   let year = getOne(resolvedSearchParams['year'], '');
 
-  // se veio mês sem ano, define ano atual
+  // Se veio mês sem ano, assume ano atual
   if (month && !year) {
     year = String(new Date().getFullYear());
   }
@@ -62,6 +74,7 @@ export default async function AccountsPayablePage({
     params.append('search', String(search));
   }
 
+  // Busca os dados paginados para render inicial
   const paginatedAccounts = await getPaginatedAccounts(params);
 
   return (
