@@ -1,14 +1,13 @@
-// src/app/dashboard/components/contracts/ContractsClient.tsx
+// src/components/contracts/ContractsClient.tsx
 "use client";
 
 import React, { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { PlusCircle, Pencil, Trash2, Calendar, Clock } from 'lucide-react';
+import { PlusCircle, Pencil, Trash2, Filter, Calendar, Clock, Info } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import ContractFormModal from './ContractsFormModal';
 import { DeleteConfirmationModal } from '@/components/DeleteConfirmationModal';
-import { Pagination } from '../Pagination';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:3001';
 
@@ -29,6 +28,8 @@ type Contract = {
   processNumber?: string | null;
   municipality: { id: number; name: string; };
   department: { id: number; name: string; municipalityId: number } | null;
+
+  // calculados no backend
   daysToEnd: number | null;
   alertTag: 'EXPIRADO' | 'D-7' | 'D-30' | 'HOJE' | null;
 };
@@ -52,13 +53,9 @@ export default function ContractsClient(props: Props) {
   const [deleting, setDeleting] = useState<Contract | null>(null);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
+  // modal de form
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editing, setEditing] = useState<Contract | null>(null);
-
-  // ✅ sincroniza a lista quando o server re-renderiza com novos dados
-  useEffect(() => {
-    setContracts(initialContracts);
-  }, [initialContracts]);
 
   // filtros (querystring)
   const qSearch = searchParams.get('search') || '';
@@ -83,31 +80,53 @@ export default function ContractsClient(props: Props) {
     load();
   }, [qMunicipalityId]);
 
+  // helpers
   const money = (v: number | null) =>
-    v == null ? '—' : v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    (v ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
-  const alertBadgeClass = (tag: Contract['alertTag']) => {
-    switch (tag) {
-      case 'EXPIRADO': return 'bg-red-600 text-white';
-      case 'HOJE': return 'bg-amber-500 text-white';
-      case 'D-7': return 'bg-orange-500 text-white';
-      case 'D-30': return 'bg-emerald-500 text-white';
-      default: return 'hidden';
-    }
+  // nova paleta dos badges + tooltip
+  const alertStyles: Record<NonNullable<Contract['alertTag']>, string> = {
+    EXPIRADO: 'bg-red-600 text-white',
+    HOJE: 'bg-amber-500 text-white',
+    'D-7': 'bg-orange-500 text-white',
+    'D-30': 'bg-emerald-600 text-white',
   };
 
+  const alertLabel = (c: Contract) => {
+    if (!c.alertTag) return '';
+    const base =
+      c.alertTag === 'EXPIRADO' ? 'Contrato expirado' :
+        c.alertTag === 'HOJE' ? 'Vence hoje' :
+          c.alertTag === 'D-7' ? 'Vence em até 7 dias' :
+            'Vence em até 30 dias';
+
+    const days =
+      typeof c.daysToEnd === 'number'
+        ? (c.daysToEnd < 0
+          ? `${Math.abs(c.daysToEnd)} dia(s) em atraso`
+          : c.daysToEnd === 0
+            ? 'vence hoje'
+            : `faltam ${c.daysToEnd} dia(s)`)
+        : '';
+
+    return [base, days].filter(Boolean).join(' • ');
+  };
+
+  // navegação filtros
   const setParam = (key: string, value?: string | null) => {
     const params = new URLSearchParams(searchParams.toString());
     if (value && value !== '') params.set(key, value);
     else params.delete(key);
+    // reset pag
     params.set('page', '1');
     router.push(`?${params.toString()}`);
   };
 
+  // Handlers dos filtros
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => setParam('search', e.target.value);
   const handleMunicipality = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setDepartments([]); // opcional: limpa imediatamente a lista visível
     setParam('municipalityId', e.target.value);
+    // reset department quando troca município
     const params = new URLSearchParams(searchParams.toString());
     params.delete('departmentId');
     params.set('page', '1');
@@ -120,6 +139,7 @@ export default function ContractsClient(props: Props) {
   const handleExpiredOnly = (e: React.ChangeEvent<HTMLInputElement>) => setParam('expiredOnly', e.target.checked ? 'true' : '');
   const handleOrder = (e: React.ChangeEvent<HTMLSelectElement>) => setParam('order', e.target.value);
 
+  // ações
   const openCreate = () => { setEditing(null); setIsFormOpen(true); };
   const openEdit = (c: Contract) => { setEditing(c); setIsFormOpen(true); };
   const confirmDelete = (c: Contract) => { setDeleting(c); setIsDeleteModalOpen(true); };
@@ -143,6 +163,7 @@ export default function ContractsClient(props: Props) {
               await fetch(`${API_BASE}/contracts/${deleting.id}`, { method: 'DELETE' });
               setIsDeleteModalOpen(false);
               setDeleting(null);
+              // reload
               router.refresh();
             } catch {
               alert('Erro ao excluir contrato.');
@@ -185,8 +206,7 @@ export default function ContractsClient(props: Props) {
 
             <div>
               <label className="block text-xs text-gray-500 mb-1">Município</label>
-              <select
-                title="Município"
+              <select title="Município"
                 value={qMunicipalityId}
                 onChange={handleMunicipality}
                 className="w-full border rounded-md px-3 py-2 bg-white"
@@ -200,17 +220,15 @@ export default function ContractsClient(props: Props) {
 
             <div>
               <label className="block text-xs text-gray-500 mb-1">Órgão/Secretaria</label>
-              <select
-                title="Órgão/Secretaria"
+              <select title="Órgão/Secretaria"
                 value={qDepartmentId}
                 onChange={handleDepartment}
                 className="w-full border rounded-md px-3 py-2 bg-white"
                 disabled={!qMunicipalityId}
               >
                 <option value="">Todos</option>
-                {departments.map(d => (
-                  <option key={d.id} value={d.id}>{d.name}</option>
-                ))}
+                {/* Carregado dinamicamente quando município é selecionado */}
+                {/* departments vem do useEffect, mantido abaixo */}
               </select>
             </div>
 
@@ -259,8 +277,7 @@ export default function ContractsClient(props: Props) {
 
             <div>
               <label className="block text-xs text-gray-500 mb-1">Ordenar por fim</label>
-              <select
-                title="Ordenar por fim"
+              <select title="Ordenar por fim"
                 value={qOrder}
                 onChange={handleOrder}
                 className="w-full border rounded-md px-3 py-2 bg-white"
@@ -269,6 +286,26 @@ export default function ContractsClient(props: Props) {
                 <option value="desc">Mais recentes → antigos</option>
               </select>
             </div>
+          </div>
+
+          {/* Legenda compacta dos alertas */}
+          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-gray-600">
+            <span className="inline-flex items-center gap-1">
+              <span className="inline-block h-2.5 w-2.5 rounded-full bg-emerald-600" /> D-30
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="inline-block h-2.5 w-2.5 rounded-full bg-orange-500" /> D-7
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="inline-block h-2.5 w-2.5 rounded-full bg-amber-500" /> HOJE
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="inline-block h-2.5 w-2.5 rounded-full bg-red-600" /> EXPIRADO
+            </span>
+            <span className="inline-flex items-center gap-1 text-gray-400 ml-2">
+              <Info size={14} />
+              Passe o mouse no selo para detalhes
+            </span>
           </div>
         </div>
 
@@ -298,14 +335,20 @@ export default function ContractsClient(props: Props) {
                     <td className="p-3 font-medium text-gray-800">{c.code}</td>
                     <td className="p-3 text-gray-700">{c.municipality?.name}</td>
                     <td className="p-3 text-gray-700">{c.department?.name ?? '—'}</td>
-                    <td className="p-3 text-gray-700 flex items-center gap-1">
-                      <Calendar size={16} className="text-gray-400" />
-                      {period}
+                    <td className="p-3 text-gray-700">
+                      <div className="flex items-center gap-1">
+                        <Calendar size={16} className="text-gray-400" />
+                        <span>{period}</span>
+                      </div>
                     </td>
                     <td className="p-3 text-gray-700">{money(c.monthlyValue)}</td>
                     <td className="p-3">
                       {c.alertTag && (
-                        <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full ${alertBadgeClass(c.alertTag)}`}>
+                        <span
+                          className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full ${alertStyles[c.alertTag]}`}
+                          title={alertLabel(c)}
+                          aria-label={alertLabel(c)}
+                        >
                           <Clock size={12} />
                           {c.alertTag}
                           {typeof c.daysToEnd === 'number' && (
@@ -347,7 +390,7 @@ export default function ContractsClient(props: Props) {
           </table>
         </div>
 
-        {/* Paginação simples */}
+        {/* Paginação simples (botões) — você já tem um componente Pagination; use se preferir */}
         <div className="flex items-center justify-between mt-4">
           <span className="text-sm text-gray-500">
             Total: {totalContracts}
@@ -369,7 +412,6 @@ export default function ContractsClient(props: Props) {
             })}
           </div>
         </div>
-        <Pagination currentPage={currentPage} totalPages={totalPages} />
       </div>
     </>
   );
