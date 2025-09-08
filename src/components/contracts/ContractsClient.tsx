@@ -1,13 +1,14 @@
-// src/components/contracts/ContractsClient.tsx
+// src/app/dashboard/components/contracts/ContractsClient.tsx
 "use client";
 
 import React, { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { PlusCircle, Pencil, Trash2, Filter, Calendar, Clock, Info } from 'lucide-react';
+import { PlusCircle, Pencil, Trash2, Calendar, Clock, Info } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import ContractFormModal from './ContractsFormModal';
 import { DeleteConfirmationModal } from '@/components/DeleteConfirmationModal';
+import { Pagination } from '@/components/Pagination';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:3001';
 
@@ -28,8 +29,6 @@ type Contract = {
   processNumber?: string | null;
   municipality: { id: number; name: string; };
   department: { id: number; name: string; municipalityId: number } | null;
-
-  // calculados no backend
   daysToEnd: number | null;
   alertTag: 'EXPIRADO' | 'D-7' | 'D-30' | 'HOJE' | null;
 };
@@ -43,17 +42,47 @@ type Props = {
   municipalities: Municipality[];
 };
 
+// === helpers visuais ===
+const money = (v: number | null) =>
+  (v ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+const alertStyles: Record<NonNullable<Contract['alertTag']>, string> = {
+  EXPIRADO: 'bg-red-600 text-white',
+  'HOJE': 'bg-amber-600 text-white',
+  'D-7': 'bg-orange-500 text-white',
+  'D-30': 'bg-emerald-500 text-white',
+};
+
+function alertTooltip(c: Contract) {
+  if (!c.alertTag) return '';
+  const label =
+    c.alertTag === 'EXPIRADO' ? 'Contrato expirado' :
+      c.alertTag === 'HOJE' ? 'Contrato vence hoje' :
+        c.alertTag === 'D-7' ? 'Vence em até 7 dias' :
+          'Vence em até 30 dias';
+
+  const days =
+    typeof c.daysToEnd === 'number'
+      ? (c.daysToEnd < 0
+        ? `${Math.abs(c.daysToEnd)} dia(s) em atraso`
+        : c.daysToEnd === 0
+          ? 'vence hoje'
+          : `faltam ${c.daysToEnd} dia(s)`)
+      : '';
+
+  return [label, days].filter(Boolean).join(' • ');
+}
+
 export default function ContractsClient(props: Props) {
   const { initialContracts, totalContracts, page, totalPages, municipalities } = props;
 
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const [contracts, setContracts] = useState<Contract[]>(initialContracts);
+  const [contracts] = useState<Contract[]>(initialContracts);
   const [deleting, setDeleting] = useState<Contract | null>(null);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
-  // modal de form
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editing, setEditing] = useState<Contract | null>(null);
 
@@ -68,7 +97,7 @@ export default function ContractsClient(props: Props) {
   const qOrder = searchParams.get('order') || 'asc';
   const currentPage = Number(searchParams.get('page') || page || 1);
 
-  // carregar órgãos (departments) por município
+  // órgãos por município
   const [departments, setDepartments] = useState<Department[]>([]);
   useEffect(() => {
     const load = async () => {
@@ -80,53 +109,18 @@ export default function ContractsClient(props: Props) {
     load();
   }, [qMunicipalityId]);
 
-  // helpers
-  const money = (v: number | null) =>
-    (v ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-
-  // nova paleta dos badges + tooltip
-  const alertStyles: Record<NonNullable<Contract['alertTag']>, string> = {
-    EXPIRADO: 'bg-red-600 text-white',
-    HOJE: 'bg-amber-500 text-white',
-    'D-7': 'bg-orange-500 text-white',
-    'D-30': 'bg-emerald-600 text-white',
-  };
-
-  const alertLabel = (c: Contract) => {
-    if (!c.alertTag) return '';
-    const base =
-      c.alertTag === 'EXPIRADO' ? 'Contrato expirado' :
-        c.alertTag === 'HOJE' ? 'Vence hoje' :
-          c.alertTag === 'D-7' ? 'Vence em até 7 dias' :
-            'Vence em até 30 dias';
-
-    const days =
-      typeof c.daysToEnd === 'number'
-        ? (c.daysToEnd < 0
-          ? `${Math.abs(c.daysToEnd)} dia(s) em atraso`
-          : c.daysToEnd === 0
-            ? 'vence hoje'
-            : `faltam ${c.daysToEnd} dia(s)`)
-        : '';
-
-    return [base, days].filter(Boolean).join(' • ');
-  };
-
   // navegação filtros
   const setParam = (key: string, value?: string | null) => {
     const params = new URLSearchParams(searchParams.toString());
     if (value && value !== '') params.set(key, value);
     else params.delete(key);
-    // reset pag
     params.set('page', '1');
     router.push(`?${params.toString()}`);
   };
 
-  // Handlers dos filtros
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => setParam('search', e.target.value);
   const handleMunicipality = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setParam('municipalityId', e.target.value);
-    // reset department quando troca município
     const params = new URLSearchParams(searchParams.toString());
     params.delete('departmentId');
     params.set('page', '1');
@@ -139,7 +133,6 @@ export default function ContractsClient(props: Props) {
   const handleExpiredOnly = (e: React.ChangeEvent<HTMLInputElement>) => setParam('expiredOnly', e.target.checked ? 'true' : '');
   const handleOrder = (e: React.ChangeEvent<HTMLSelectElement>) => setParam('order', e.target.value);
 
-  // ações
   const openCreate = () => { setEditing(null); setIsFormOpen(true); };
   const openEdit = (c: Contract) => { setEditing(c); setIsFormOpen(true); };
   const confirmDelete = (c: Contract) => { setDeleting(c); setIsDeleteModalOpen(true); };
@@ -163,7 +156,6 @@ export default function ContractsClient(props: Props) {
               await fetch(`${API_BASE}/contracts/${deleting.id}`, { method: 'DELETE' });
               setIsDeleteModalOpen(false);
               setDeleting(null);
-              // reload
               router.refresh();
             } catch {
               alert('Erro ao excluir contrato.');
@@ -191,7 +183,7 @@ export default function ContractsClient(props: Props) {
         </div>
 
         {/* Filtros */}
-        <div className="bg-white p-4 rounded-xl shadow-sm mb-4">
+        <div className="bg-white p-4 rounded-xl shadow-sm mb-3">
           <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
             <div className="col-span-2">
               <label className="block text-xs text-gray-500 mb-1">Buscar (código/descr.)</label>
@@ -227,8 +219,9 @@ export default function ContractsClient(props: Props) {
                 disabled={!qMunicipalityId}
               >
                 <option value="">Todos</option>
-                {/* Carregado dinamicamente quando município é selecionado */}
-                {/* departments vem do useEffect, mantido abaixo */}
+                {departments.map(d => (
+                  <option key={d.id} value={d.id}>{d.name}</option>
+                ))}
               </select>
             </div>
 
@@ -287,26 +280,26 @@ export default function ContractsClient(props: Props) {
               </select>
             </div>
           </div>
+        </div>
 
-          {/* Legenda compacta dos alertas */}
-          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-gray-600">
-            <span className="inline-flex items-center gap-1">
-              <span className="inline-block h-2.5 w-2.5 rounded-full bg-emerald-600" /> D-30
-            </span>
-            <span className="inline-flex items-center gap-1">
-              <span className="inline-block h-2.5 w-2.5 rounded-full bg-orange-500" /> D-7
-            </span>
-            <span className="inline-flex items-center gap-1">
-              <span className="inline-block h-2.5 w-2.5 rounded-full bg-amber-500" /> HOJE
-            </span>
-            <span className="inline-flex items-center gap-1">
-              <span className="inline-block h-2.5 w-2.5 rounded-full bg-red-600" /> EXPIRADO
-            </span>
-            <span className="inline-flex items-center gap-1 text-gray-400 ml-2">
-              <Info size={14} />
-              Passe o mouse no selo para detalhes
-            </span>
-          </div>
+        {/* Legenda dos alertas */}
+        <div className="mb-4 flex flex-wrap items-center gap-2 text-xs text-gray-600">
+          <span className="inline-flex items-center gap-1">
+            <span className="inline-block h-2.5 w-2.5 rounded-full bg-emerald-500" /> D-30
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <span className="inline-block h-2.5 w-2.5 rounded-full bg-orange-500" /> D-7
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <span className="inline-block h-2.5 w-2.5 rounded-full bg-amber-600" /> HOJE
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <span className="inline-block h-2.5 w-2.5 rounded-full bg-red-600" /> EXPIRADO
+          </span>
+          <span className="inline-flex items-center gap-1 text-gray-400 ml-2">
+            <Info size={14} />
+            Passe o mouse no selo para detalhes
+          </span>
         </div>
 
         {/* Tabela */}
@@ -338,7 +331,7 @@ export default function ContractsClient(props: Props) {
                     <td className="p-3 text-gray-700">
                       <div className="flex items-center gap-1">
                         <Calendar size={16} className="text-gray-400" />
-                        <span>{period}</span>
+                        {period}
                       </div>
                     </td>
                     <td className="p-3 text-gray-700">{money(c.monthlyValue)}</td>
@@ -346,8 +339,8 @@ export default function ContractsClient(props: Props) {
                       {c.alertTag && (
                         <span
                           className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full ${alertStyles[c.alertTag]}`}
-                          title={alertLabel(c)}
-                          aria-label={alertLabel(c)}
+                          title={alertTooltip(c)}
+                          aria-label={alertTooltip(c)}
                         >
                           <Clock size={12} />
                           {c.alertTag}
@@ -390,28 +383,8 @@ export default function ContractsClient(props: Props) {
           </table>
         </div>
 
-        {/* Paginação simples (botões) — você já tem um componente Pagination; use se preferir */}
-        <div className="flex items-center justify-between mt-4">
-          <span className="text-sm text-gray-500">
-            Total: {totalContracts}
-          </span>
-          <div className="flex gap-2">
-            {Array.from({ length: totalPages }).map((_, i) => {
-              const p = i + 1;
-              const params = new URLSearchParams(searchParams.toString());
-              params.set('page', String(p));
-              return (
-                <button
-                  key={p}
-                  onClick={() => router.push(`?${params.toString()}`)}
-                  className={`px-3 py-1 rounded border ${p === currentPage ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700'}`}
-                >
-                  {p}
-                </button>
-              );
-            })}
-          </div>
-        </div>
+        {/* Paginação (padrão do app) */}
+        <Pagination currentPage={currentPage} totalPages={totalPages} />
       </div>
     </>
   );

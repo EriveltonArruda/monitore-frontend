@@ -1,23 +1,32 @@
+// src/app/dashboard/components/receivables/ReceivablesClient.tsx
 "use client";
 
-import React, { useEffect, useMemo, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { PlusCircle, Pencil, Trash2, Calendar, FileText, Building2, Landmark } from 'lucide-react';
-import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
-import ReceivablesFormModal from './ReceivablesFormModal';
-import { DeleteConfirmationModal } from '@/components/DeleteConfirmationModal';
-import { Pagination } from '../Pagination';
+import React, { useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import {
+  PlusCircle,
+  Pencil,
+  Trash2,
+  Calendar,
+  FileSearch,
+  Clock,
+  SortAsc,
+  SortDesc,
+} from "lucide-react";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import { Pagination } from "@/components/Pagination";
+import { DeleteConfirmationModal } from "@/components/DeleteConfirmationModal";
+import ReceivablesFormModal from "./ReceivablesFormModal";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:3001';
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:3001";
 
-type Municipality = { id: number; name: string; };
-type Department = { id: number; name: string; municipalityId: number; };
-type Contract = { id: number; code: string; municipalityId: number; departmentId: number | null; };
+type Municipality = { id: number; name: string };
+type Department = { id: number; name: string; municipalityId: number };
+type Contract = { id: number; code: string };
 
 type Receivable = {
   id: number;
-  contractId: number;
   noteNumber: string | null;
   issueDate: string | null;
   grossAmount: number | null;
@@ -27,148 +36,205 @@ type Receivable = {
   periodEnd: string | null;
   deliveryDate: string | null;
   receivedAt: string | null;
-  status: 'A_RECEBER' | 'ATRASADO' | 'RECEBIDO';
-  createdAt: string;
-  updatedAt: string;
+  status: "A_RECEBER" | "ATRASADO" | "RECEBIDO";
+  contractId: number;
   contract: {
     id: number;
     code: string;
     municipalityId: number;
     departmentId: number | null;
-    municipality: { id: number; name: string; };
-    department: { id: number; name: string; municipalityId: number } | null;
+    municipality?: { id: number; name: string };
+    department?: { id: number; name: string; municipalityId: number };
   };
 };
 
 type Props = {
-  initialRows: Receivable[];
-  totalRows: number;
+  initialReceivables: Receivable[];
+  totalReceivables: number;
   page: number;
   totalPages: number;
   limit: number;
   municipalities: Municipality[];
 };
 
+const money = (v: number | null) =>
+  (v ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
+const statusClass: Record<Receivable["status"], string> = {
+  A_RECEBER: "bg-amber-100 text-amber-700",
+  ATRASADO: "bg-red-100 text-red-700",
+  RECEBIDO: "bg-emerald-100 text-emerald-700",
+};
+
+const statusLabel: Record<Receivable["status"], string> = {
+  A_RECEBER: "A Receber",
+  ATRASADO: "Atrasado",
+  RECEBIDO: "Recebido",
+};
+
 export default function ReceivablesClient(props: Props) {
-  const { initialRows, totalRows, page, totalPages, municipalities } = props;
+  const {
+    initialReceivables,
+    totalReceivables,
+    page,
+    totalPages,
+    municipalities,
+  } = props;
 
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const [rows, setRows] = useState<Receivable[]>(initialRows);
+  const [rows] = useState<Receivable[]>(initialReceivables);
 
-  // modais
-  const [isFormOpen, setIsFormOpen] = useState(false);
-  const [editing, setEditing] = useState<Receivable | null>(null);
-  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  // modal excluir
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState<Receivable | null>(null);
 
+  // modal form
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [editing, setEditing] = useState<Receivable | null>(null);
+
   // filtros (querystring)
-  const qSearch = searchParams.get('search') || '';
-  const qMunicipalityId = searchParams.get('municipalityId') || '';
-  const qDepartmentId = searchParams.get('departmentId') || '';
-  const qContractId = searchParams.get('contractId') || '';
-  const qStatus = searchParams.get('status') || '';
-  const qIssueFrom = searchParams.get('issueFrom') || '';
-  const qIssueTo = searchParams.get('issueTo') || '';
-  const qPeriodFrom = searchParams.get('periodFrom') || '';
-  const qPeriodTo = searchParams.get('periodTo') || '';
-  const qReceivedFrom = searchParams.get('receivedFrom') || '';
-  const qReceivedTo = searchParams.get('receivedTo') || '';
-  const qOrderBy = searchParams.get('orderBy') || 'issueDate';
-  const qOrder = searchParams.get('order') || 'desc';
-  const currentPage = Number(searchParams.get('page') || page || 1);
+  const qSearch = searchParams.get("search") || "";
+  const qMunicipalityId = searchParams.get("municipalityId") || "";
+  const qDepartmentId = searchParams.get("departmentId") || "";
+  const qStatus = searchParams.get("status") || "";
+  const qIssueFrom = searchParams.get("issueFrom") || "";
+  const qIssueTo = searchParams.get("issueTo") || "";
+  const qOrderBy = searchParams.get("orderBy") || "issueDate";
+  const qOrder = searchParams.get("order") || "desc";
+  const currentPage = Number(searchParams.get("page") || page || 1);
 
-  // dependências de filtros (carregar órgãos e contratos conforme município/órgão)
+  // órgãos dependentes do município
   const [departments, setDepartments] = useState<Department[]>([]);
-  const [contracts, setContracts] = useState<Contract[]>([]);
-
   useEffect(() => {
-    const loadDeps = async () => {
-      if (!qMunicipalityId) { setDepartments([]); return; }
-      const res = await fetch(`${API_BASE}/departments?municipalityId=${qMunicipalityId}&limit=9999`);
+    const load = async () => {
+      if (!qMunicipalityId) {
+        setDepartments([]);
+        return;
+      }
+      const res = await fetch(
+        `${API_BASE}/departments?municipalityId=${qMunicipalityId}&limit=9999`
+      );
       const json = await res.json().catch(() => ({ data: [] }));
       setDepartments(json.data || []);
     };
-    loadDeps();
+    load();
   }, [qMunicipalityId]);
 
+  // contratos dependentes do órgão (opcional — lista curta para pesquisa)
+  const [contracts, setContracts] = useState<Contract[]>([]);
+  const qContractId = searchParams.get("contractId") || "";
   useEffect(() => {
-    const params = new URLSearchParams();
-    if (qMunicipalityId) params.set('municipalityId', qMunicipalityId);
-    if (qDepartmentId) params.set('departmentId', qDepartmentId);
-    params.set('limit', '9999');
+    const load = async () => {
+      const qs = new URLSearchParams();
+      if (qMunicipalityId) qs.set("municipalityId", qMunicipalityId);
+      if (qDepartmentId) qs.set("departmentId", qDepartmentId);
+      qs.set("limit", "9999");
 
-    const loadContracts = async () => {
-      if (!qMunicipalityId) { setContracts([]); return; }
-      const res = await fetch(`${API_BASE}/contracts?${params.toString()}`);
+      const res = await fetch(`${API_BASE}/contracts?${qs.toString()}`);
       const json = await res.json().catch(() => ({ data: [] }));
-      setContracts(json.data || []);
+      const list: Receivable[] = json.data || [];
+      // mapear {id, code}
+      setContracts(list.map((c: any) => ({ id: c.id, code: c.code })));
     };
-    loadContracts();
+    load();
   }, [qMunicipalityId, qDepartmentId]);
 
-  // helpers
-  const money = (v: number | null) =>
-    (v ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-
+  // navegação de filtros
   const setParam = (key: string, value?: string | null) => {
     const params = new URLSearchParams(searchParams.toString());
-    if (value && value !== '') params.set(key, value);
+    if (value && value !== "") params.set(key, value);
     else params.delete(key);
-    params.set('page', '1');
+    params.set("page", "1");
     router.push(`?${params.toString()}`);
   };
 
-  const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => setParam('search', e.target.value);
+  // handlers filtros
+  const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) =>
+    setParam("search", e.target.value);
   const handleMunicipality = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const params = new URLSearchParams(searchParams.toString());
     const val = e.target.value;
-    if (val) params.set('municipalityId', val); else params.delete('municipalityId');
+    if (val) params.set("municipalityId", val);
+    else params.delete("municipalityId");
     // reset dependentes
-    params.delete('departmentId');
-    params.delete('contractId');
-    params.set('page', '1');
+    params.delete("departmentId");
+    params.delete("contractId");
+    params.set("page", "1");
     router.push(`?${params.toString()}`);
   };
   const handleDepartment = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const params = new URLSearchParams(searchParams.toString());
     const val = e.target.value;
-    if (val) params.set('departmentId', val); else params.delete('departmentId');
-    params.delete('contractId');
-    params.set('page', '1');
+    if (val) params.set("departmentId", val);
+    else params.delete("departmentId");
+    // reset contrato
+    params.delete("contractId");
+    params.set("page", "1");
     router.push(`?${params.toString()}`);
   };
-  const handleContract = (e: React.ChangeEvent<HTMLSelectElement>) => setParam('contractId', e.target.value);
-  const handleStatus = (e: React.ChangeEvent<HTMLSelectElement>) => setParam('status', e.target.value);
+  const handleContract = (e: React.ChangeEvent<HTMLSelectElement>) =>
+    setParam("contractId", e.target.value);
+  const handleStatus = (e: React.ChangeEvent<HTMLSelectElement>) =>
+    setParam("status", e.target.value);
+  const handleIssueFrom = (e: React.ChangeEvent<HTMLInputElement>) =>
+    setParam("issueFrom", e.target.value);
+  const handleIssueTo = (e: React.ChangeEvent<HTMLInputElement>) =>
+    setParam("issueTo", e.target.value);
+  const handleOrderBy = (e: React.ChangeEvent<HTMLSelectElement>) =>
+    setParam("orderBy", e.target.value);
+  const handleOrder = (e: React.ChangeEvent<HTMLSelectElement>) =>
+    setParam("order", e.target.value);
 
+  // options estáticas
+  const statusOptions = [
+    { value: "", label: "Todos" },
+    { value: "A_RECEBER", label: "A Receber" },
+    { value: "ATRASADO", label: "Atrasado" },
+    { value: "RECEBIDO", label: "Recebido" },
+  ];
+
+  const orderByOptions = [
+    { value: "issueDate", label: "Emissão" },
+    { value: "receivedAt", label: "Recebimento" },
+    { value: "grossAmount", label: "Valor Bruto" },
+  ];
+
+  const orderIcon =
+    qOrder === "asc" ? <SortAsc size={14} /> : <SortDesc size={14} />;
+
+  // ===== RENDER =====
   return (
     <>
-      {/* Modal form */}
+      {/* Modal Form */}
       {isFormOpen && (
         <ReceivablesFormModal
           onClose={() => setIsFormOpen(false)}
           receivableToEdit={editing}
-          presetMunicipalityId={qMunicipalityId ? Number(qMunicipalityId) : undefined}
-          presetDepartmentId={qDepartmentId ? Number(qDepartmentId) : undefined}
         />
       )}
 
-      {/* Modal excluir */}
-      {isDeleteModalOpen && deleting && (
+      {/* Modal Delete */}
+      {isDeleteOpen && deleting && (
         <DeleteConfirmationModal
-          itemName={`NF ${deleting.noteNumber ?? '(sem nº)'} – ${deleting.contract?.code ?? ''}`}
+          itemName={`${deleting.noteNumber ?? "Sem NF"} – ${deleting.contract?.code ?? ""}`}
           onConfirm={async () => {
             try {
-              await fetch(`${API_BASE}/receivables/${deleting.id}`, { method: 'DELETE' });
-              setIsDeleteModalOpen(false);
+              await fetch(`${API_BASE}/receivables/${deleting.id}`, {
+                method: "DELETE",
+              });
+              setIsDeleteOpen(false);
               setDeleting(null);
               router.refresh();
             } catch {
-              alert('Erro ao excluir recebível.');
+              alert("Erro ao excluir recebível.");
             }
           }}
-          onClose={() => { setIsDeleteModalOpen(false); setDeleting(null); }}
+          onClose={() => {
+            setIsDeleteOpen(false);
+            setDeleting(null);
+          }}
           isDeleting={false}
         />
       )}
@@ -178,10 +244,15 @@ export default function ReceivablesClient(props: Props) {
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-3xl font-bold text-gray-800">Recebidos</h1>
-            <p className="text-sm text-gray-500">Notas/faturas por contrato e prefeitura</p>
+            <p className="text-sm text-gray-500">
+              Notas / parcelas recebíveis por contrato
+            </p>
           </div>
           <button
-            onClick={() => { setEditing(null); setIsFormOpen(true); }}
+            onClick={() => {
+              setEditing(null);
+              setIsFormOpen(true);
+            }}
             className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2"
           >
             <PlusCircle size={20} />
@@ -190,130 +261,177 @@ export default function ReceivablesClient(props: Props) {
         </div>
 
         {/* Filtros */}
-        <div className="bg-white p-4 rounded-xl shadow-sm mb-4">
+        <div className="bg-white p-4 rounded-xl shadow-sm mb-3">
           <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
             <div className="col-span-2">
-              <label className="block text-xs text-gray-500 mb-1">Buscar (nº nota / período)</label>
+              <label className="block text-xs text-gray-500 mb-1">
+                Buscar (NF / período / código)
+              </label>
               <input
                 type="text"
                 value={qSearch}
                 onChange={handleSearch}
                 className="w-full border rounded-md px-3 py-2"
-                placeholder="Ex.: NF-0001 ou FEV/2025"
+                placeholder="Ex.: NF-001 ou MAR/2025 ou CT 001/2025"
               />
             </div>
 
             <div>
-              <label className="block text-xs text-gray-500 mb-1">Município</label>
-              <select title="Município"
+              <label className="block text-xs text-gray-500 mb-1">
+                Município
+              </label>
+              <select
                 value={qMunicipalityId}
                 onChange={handleMunicipality}
                 className="w-full border rounded-md px-3 py-2 bg-white"
+                title="Município"
               >
                 <option value="">Todos</option>
-                {municipalities.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                {municipalities.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name}
+                  </option>
+                ))}
               </select>
             </div>
 
             <div>
-              <label className="block text-xs text-gray-500 mb-1">Órgão/Secretaria</label>
+              <label className="block text-xs text-gray-500 mb-1">
+                Órgão/Secretaria
+              </label>
               <select
                 value={qDepartmentId}
                 onChange={handleDepartment}
                 className="w-full border rounded-md px-3 py-2 bg-white"
-                disabled={!qMunicipalityId}
                 title="Órgão/Secretaria"
+                disabled={!qMunicipalityId}
               >
                 <option value="">Todos</option>
-                {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                {departments.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.name}
+                  </option>
+                ))}
               </select>
             </div>
 
             <div>
-              <label className="block text-xs text-gray-500 mb-1">Contrato</label>
-              <select title="Contrato"
+              <label className="block text-xs text-gray-500 mb-1">
+                Contrato
+              </label>
+              <select
                 value={qContractId}
                 onChange={handleContract}
                 className="w-full border rounded-md px-3 py-2 bg-white"
-                disabled={!qMunicipalityId}
+                title="Contrato"
+                disabled={!qDepartmentId && !qMunicipalityId}
               >
                 <option value="">Todos</option>
-                {contracts.map(c => <option key={c.id} value={c.id}>{c.code}</option>)}
+                {contracts.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.code}
+                  </option>
+                ))}
               </select>
             </div>
 
             <div>
-              <label className="block text-xs text-gray-500 mb-1">Status</label>
-              <select title="Status"
+              <label className="block text-xs text-gray-500 mb-1">
+                Status
+              </label>
+              <select
                 value={qStatus}
                 onChange={handleStatus}
                 className="w-full border rounded-md px-3 py-2 bg-white"
+                title="Status"
               >
-                <option value="">Todos</option>
-                <option value="A_RECEBER">A RECEBER</option>
-                <option value="ATRASADO">ATRASADO</option>
-                <option value="RECEBIDO">RECEBIDO</option>
+                {statusOptions.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-6 gap-3 mt-3">
             <div>
-              <label className="block text-xs text-gray-500 mb-1">Emissão de</label>
-              <input type="date" value={qIssueFrom} onChange={(e) => setParam('issueFrom', e.target.value)} className="w-full border rounded-md px-3 py-2" />
+              <label className="block text-xs text-gray-500 mb-1">
+                Emissão de
+              </label>
+              <input
+                type="date"
+                value={qIssueFrom}
+                onChange={handleIssueFrom}
+                className="w-full border rounded-md px-3 py-2"
+              />
             </div>
             <div>
-              <label className="block text-xs text-gray-500 mb-1">Emissão até</label>
-              <input type="date" value={qIssueTo} onChange={(e) => setParam('issueTo', e.target.value)} className="w-full border rounded-md px-3 py-2" />
+              <label className="block text-xs text-gray-500 mb-1">
+                Emissão até
+              </label>
+              <input
+                type="date"
+                value={qIssueTo}
+                onChange={handleIssueTo}
+                className="w-full border rounded-md px-3 py-2"
+              />
             </div>
 
             <div>
-              <label className="block text-xs text-gray-500 mb-1">Período de</label>
-              <input type="date" value={qPeriodFrom} onChange={(e) => setParam('periodFrom', e.target.value)} className="w-full border rounded-md px-3 py-2" />
-            </div>
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">Período até</label>
-              <input type="date" value={qPeriodTo} onChange={(e) => setParam('periodTo', e.target.value)} className="w-full border rounded-md px-3 py-2" />
-            </div>
-
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">Recebido de</label>
-              <input type="date" value={qReceivedFrom} onChange={(e) => setParam('receivedFrom', e.target.value)} className="w-full border rounded-md px-3 py-2" />
-            </div>
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">Recebido até</label>
-              <input type="date" value={qReceivedTo} onChange={(e) => setParam('receivedTo', e.target.value)} className="w-full border rounded-md px-3 py-2" />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-6 gap-3 mt-3">
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">Ordenar por</label>
-              <select title="Ordenar por"
+              <label className="block text-xs text-gray-500 mb-1">
+                Ordenar por
+              </label>
+              <select
                 value={qOrderBy}
-                onChange={(e) => setParam('orderBy', e.target.value)}
+                onChange={handleOrderBy}
                 className="w-full border rounded-md px-3 py-2 bg-white"
+                title="Ordenar por"
               >
-                <option value="issueDate">Emissão</option>
-                <option value="receivedAt">Recebido em</option>
-                <option value="periodStart">Início do Período</option>
-                <option value="periodEnd">Fim do Período</option>
-                <option value="grossAmount">Valor Bruto</option>
-                <option value="netAmount">Valor Líquido</option>
+                {orderByOptions.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
               </select>
             </div>
+
             <div>
-              <label className="block text-xs text-gray-500 mb-1">Direção</label>
-              <select title="Direção"
+              <label className="block text-xs text-gray-500 mb-1">
+                Ordem
+              </label>
+              <select
                 value={qOrder}
-                onChange={(e) => setParam('order', e.target.value)}
+                onChange={handleOrder}
                 className="w-full border rounded-md px-3 py-2 bg-white"
+                title="Ordem"
               >
-                <option value="desc">Desc</option>
-                <option value="asc">Asc</option>
+                <option value="asc">Ascendente</option>
+                <option value="desc">Descendente</option>
               </select>
+              <div className="mt-1 text-gray-400">{orderIcon}</div>
             </div>
           </div>
+        </div>
+
+        {/* Legenda de status */}
+        <div className="mb-4 flex flex-wrap items-center gap-2 text-xs text-gray-600">
+          <span className="inline-flex items-center gap-1">
+            <span className="inline-block h-2.5 w-2.5 rounded-full bg-amber-400" /> A
+            Receber
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <span className="inline-block h-2.5 w-2.5 rounded-full bg-red-500" />{" "}
+            Atrasado
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <span className="inline-block h-2.5 w-2.5 rounded-full bg-emerald-500" />{" "}
+            Recebido
+          </span>
+          <span className="inline-flex items-center gap-1 text-gray-400 ml-2">
+            <FileSearch size={14} />
+            Passe o mouse no selo para detalhes
+          </span>
         </div>
 
         {/* Tabela */}
@@ -321,78 +439,82 @@ export default function ReceivablesClient(props: Props) {
           <table className="w-full table-auto">
             <thead className="text-left border-b-2 border-gray-100">
               <tr>
-                <th className="p-3 font-semibold text-gray-600">Nº Nota</th>
                 <th className="p-3 font-semibold text-gray-600">Contrato</th>
-                <th className="p-3 font-semibold text-gray-600">Município</th>
-                <th className="p-3 font-semibold text-gray-600">Órgão</th>
+                <th className="p-3 font-semibold text-gray-600">NF</th>
                 <th className="p-3 font-semibold text-gray-600">Período</th>
                 <th className="p-3 font-semibold text-gray-600">Emissão</th>
-                <th className="p-3 font-semibold text-gray-600">Entrega</th>
-                <th className="p-3 font-semibold text-gray-600">Recebido em</th>
-                <th className="p-3 font-semibold text-gray-600">Bruto</th>
-                <th className="p-3 font-semibold text-gray-600">Líquido</th>
-                <th className="p-3 font-semibold text-gray-600 w-28">Status</th>
-                <th className="p-3 font-semibold text-gray-600 w-28">Ações</th>
+                <th className="p-3 font-semibold text-gray-600">Valor Líquido</th>
+                <th className="p-3 font-semibold text-gray-600">Status</th>
+                <th className="p-3 font-semibold text-gray-600 w-32">Ações</th>
               </tr>
             </thead>
             <tbody>
               {rows.map((r) => {
-                const period = [
-                  r.periodStart ? format(new Date(r.periodStart), 'dd/MM/yyyy', { locale: ptBR }) : '—',
-                  r.periodEnd ? format(new Date(r.periodEnd), 'dd/MM/yyyy', { locale: ptBR }) : '—',
-                ].join(' → ');
+                const period =
+                  r.periodStart || r.periodEnd
+                    ? [
+                      r.periodStart
+                        ? format(new Date(r.periodStart), "dd/MM/yyyy", {
+                          locale: ptBR,
+                        })
+                        : "—",
+                      r.periodEnd
+                        ? format(new Date(r.periodEnd), "dd/MM/yyyy", {
+                          locale: ptBR,
+                        })
+                        : "—",
+                    ].join(" → ")
+                    : r.periodLabel || "—";
+
+                const issue = r.issueDate
+                  ? format(new Date(r.issueDate), "dd/MM/yyyy", { locale: ptBR })
+                  : "—";
+
+                const receivedInfo =
+                  r.receivedAt &&
+                  `Recebido em ${format(new Date(r.receivedAt), "dd/MM/yyyy", {
+                    locale: ptBR,
+                  })}`;
+
                 return (
                   <tr key={r.id} className="border-b hover:bg-gray-50 last:border-b-0">
-                    <td className="p-3 font-medium text-gray-800">
-                      <div className="inline-flex items-center gap-1">
-                        <FileText size={16} className="text-gray-400" />
-                        {r.noteNumber ?? '—'}
-                      </div>
-                    </td>
                     <td className="p-3 text-gray-700">{r.contract?.code}</td>
+                    <td className="p-3 text-gray-700">{r.noteNumber ?? "—"}</td>
                     <td className="p-3 text-gray-700">
-                      <div className="inline-flex items-center gap-1">
-                        <Building2 size={16} className="text-gray-400" />
-                        {r.contract?.municipality?.name}
+                      <div className="flex items-center gap-1">
+                        <Calendar size={16} className="text-gray-400" />
+                        {period}
                       </div>
                     </td>
-                    <td className="p-3 text-gray-700">
-                      <div className="inline-flex items-center gap-1">
-                        <Landmark size={16} className="text-gray-400" />
-                        {r.contract?.department?.name ?? '—'}
-                      </div>
-                    </td>
-                    <td className="p-3 text-gray-700">{period}</td>
-                    <td className="p-3 text-gray-700">
-                      {r.issueDate ? format(new Date(r.issueDate), 'dd/MM/yyyy', { locale: ptBR }) : '—'}
-                    </td>
-                    <td className="p-3 text-gray-700">
-                      {r.deliveryDate ? format(new Date(r.deliveryDate), 'dd/MM/yyyy', { locale: ptBR }) : '—'}
-                    </td>
-                    <td className="p-3 text-gray-700">
-                      {r.receivedAt ? format(new Date(r.receivedAt), 'dd/MM/yyyy', { locale: ptBR }) : '—'}
-                    </td>
-                    <td className="p-3 text-gray-700">{money(r.grossAmount)}</td>
+                    <td className="p-3 text-gray-700">{issue}</td>
                     <td className="p-3 text-gray-700">{money(r.netAmount)}</td>
                     <td className="p-3">
-                      <span className={`px-2 py-1 text-xs font-semibold rounded-full
-                        ${r.status === 'RECEBIDO' ? 'bg-emerald-100 text-emerald-700' :
-                          r.status === 'ATRASADO' ? 'bg-red-100 text-red-700' :
-                            'bg-amber-100 text-amber-700'}`}>
-                        {r.status}
+                      <span
+                        className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full ${statusClass[r.status]}`}
+                        title={receivedInfo || statusLabel[r.status]}
+                        aria-label={receivedInfo || statusLabel[r.status]}
+                      >
+                        <Clock size={12} />
+                        {statusLabel[r.status]}
                       </span>
                     </td>
                     <td className="p-3">
                       <div className="flex items-center gap-2">
                         <button
-                          onClick={() => { setEditing(r); setIsFormOpen(true); }}
+                          onClick={() => {
+                            setEditing(r);
+                            setIsFormOpen(true);
+                          }}
                           className="text-gray-400 hover:text-blue-600"
                           title="Editar"
                         >
                           <Pencil size={18} />
                         </button>
                         <button
-                          onClick={() => { setDeleting(r); setIsDeleteModalOpen(true); }}
+                          onClick={() => {
+                            setDeleting(r);
+                            setIsDeleteOpen(true);
+                          }}
                           className="text-gray-400 hover:text-red-600"
                           title="Excluir"
                         >
@@ -403,9 +525,10 @@ export default function ReceivablesClient(props: Props) {
                   </tr>
                 );
               })}
+
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={12} className="p-6 text-center text-gray-500">
+                  <td colSpan={7} className="p-6 text-center text-gray-500">
                     Nenhum recebido encontrado com os filtros atuais.
                   </td>
                 </tr>
@@ -415,25 +538,6 @@ export default function ReceivablesClient(props: Props) {
         </div>
 
         {/* Paginação */}
-        <div className="flex items-center justify-between mt-4">
-          <span className="text-sm text-gray-500">Total: {totalRows}</span>
-          <div className="flex gap-2">
-            {Array.from({ length: totalPages }).map((_, i) => {
-              const p = i + 1;
-              const params = new URLSearchParams(searchParams.toString());
-              params.set('page', String(p));
-              return (
-                <button
-                  key={p}
-                  onClick={() => router.push(`?${params.toString()}`)}
-                  className={`px-3 py-1 rounded border ${p === currentPage ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700'}`}
-                >
-                  {p}
-                </button>
-              );
-            })}
-          </div>
-        </div>
         <Pagination currentPage={currentPage} totalPages={totalPages} />
       </div>
     </>
