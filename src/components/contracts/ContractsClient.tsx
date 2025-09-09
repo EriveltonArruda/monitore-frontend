@@ -1,19 +1,19 @@
 // src/app/dashboard/components/contracts/ContractsClient.tsx
 "use client";
 
-import React, { useEffect, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { PlusCircle, Pencil, Trash2, Calendar, Clock, Info } from 'lucide-react';
-import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
-import ContractFormModal from './ContractsFormModal';
-import { DeleteConfirmationModal } from '@/components/DeleteConfirmationModal';
-import { Pagination } from '@/components/Pagination';
+import React, { useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { PlusCircle, Pencil, Trash2, Calendar, Clock, Info } from "lucide-react";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import ContractFormModal from "./ContractsFormModal";
+import { DeleteConfirmationModal } from "@/components/DeleteConfirmationModal";
+import { Pagination } from "@/components/Pagination";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:3001';
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:3001";
 
-type Municipality = { id: number; name: string; };
-type Department = { id: number; name: string; municipalityId: number; };
+type Municipality = { id: number; name: string };
+type Department = { id: number; name: string; municipalityId: number };
 
 type Contract = {
   id: number;
@@ -27,10 +27,10 @@ type Contract = {
   status: string;
   signedAt?: string | null;
   processNumber?: string | null;
-  municipality: { id: number; name: string; };
+  municipality: { id: number; name: string };
   department: { id: number; name: string; municipalityId: number } | null;
   daysToEnd: number | null;
-  alertTag: 'EXPIRADO' | 'D-7' | 'D-30' | 'HOJE' | null;
+  alertTag: "EXPIRADO" | "D-7" | "D-30" | "HOJE" | null;
 };
 
 type Props = {
@@ -42,35 +42,37 @@ type Props = {
   municipalities: Municipality[];
 };
 
-// === helpers visuais ===
 const money = (v: number | null) =>
-  (v ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  (v ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
-const alertStyles: Record<NonNullable<Contract['alertTag']>, string> = {
-  EXPIRADO: 'bg-red-600 text-white',
-  'HOJE': 'bg-amber-600 text-white',
-  'D-7': 'bg-orange-500 text-white',
-  'D-30': 'bg-emerald-500 text-white',
+const alertStyles: Record<NonNullable<Contract["alertTag"]>, string> = {
+  EXPIRADO: "bg-red-600 text-white",
+  HOJE: "bg-amber-600 text-white",
+  "D-7": "bg-orange-500 text-white",
+  "D-30": "bg-emerald-500 text-white",
 };
 
 function alertTooltip(c: Contract) {
-  if (!c.alertTag) return '';
+  if (!c.alertTag) return "";
   const label =
-    c.alertTag === 'EXPIRADO' ? 'Contrato expirado' :
-      c.alertTag === 'HOJE' ? 'Contrato vence hoje' :
-        c.alertTag === 'D-7' ? 'Vence em até 7 dias' :
-          'Vence em até 30 dias';
+    c.alertTag === "EXPIRADO"
+      ? "Contrato expirado"
+      : c.alertTag === "HOJE"
+        ? "Contrato vence hoje"
+        : c.alertTag === "D-7"
+          ? "Vence em até 7 dias"
+          : "Vence em até 30 dias";
 
   const days =
-    typeof c.daysToEnd === 'number'
-      ? (c.daysToEnd < 0
+    typeof c.daysToEnd === "number"
+      ? c.daysToEnd < 0
         ? `${Math.abs(c.daysToEnd)} dia(s) em atraso`
         : c.daysToEnd === 0
-          ? 'vence hoje'
-          : `faltam ${c.daysToEnd} dia(s)`)
-      : '';
+          ? "vence hoje"
+          : `faltam ${c.daysToEnd} dia(s)`
+      : "";
 
-  return [label, days].filter(Boolean).join(' • ');
+  return [label, days].filter(Boolean).join(" • ");
 }
 
 export default function ContractsClient(props: Props) {
@@ -79,29 +81,32 @@ export default function ContractsClient(props: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const [contracts] = useState<Contract[]>(initialContracts);
-  const [deleting, setDeleting] = useState<Contract | null>(null);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [deleting, setDeleting] = useState<Contract | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editing, setEditing] = useState<Contract | null>(null);
 
   // filtros (querystring)
-  const qSearch = searchParams.get('search') || '';
-  const qMunicipalityId = searchParams.get('municipalityId') || '';
-  const qDepartmentId = searchParams.get('departmentId') || '';
-  const qEndFrom = searchParams.get('endFrom') || '';
-  const qEndTo = searchParams.get('endTo') || '';
-  const qDueInDays = searchParams.get('dueInDays') || '';
-  const qExpiredOnly = searchParams.get('expiredOnly') || '';
-  const qOrder = searchParams.get('order') || 'asc';
-  const currentPage = Number(searchParams.get('page') || page || 1);
+  const qSearch = searchParams.get("search") || "";
+  const qMunicipalityId = searchParams.get("municipalityId") || "";
+  const qDepartmentId = searchParams.get("departmentId") || "";
+  const qEndFrom = searchParams.get("endFrom") || "";
+  const qEndTo = searchParams.get("endTo") || "";
+  const qDueInDays = searchParams.get("dueInDays") || "";
+  const qExpiredOnly = searchParams.get("expiredOnly") || "";
+  const qOrder = searchParams.get("order") || "asc";
+  const currentPage = Number(searchParams.get("page") || page || 1);
 
   // órgãos por município
   const [departments, setDepartments] = useState<Department[]>([]);
   useEffect(() => {
     const load = async () => {
-      if (!qMunicipalityId) { setDepartments([]); return; }
+      if (!qMunicipalityId) {
+        setDepartments([]);
+        return;
+      }
       const res = await fetch(`${API_BASE}/departments?municipalityId=${qMunicipalityId}&limit=9999`);
       const json = await res.json().catch(() => ({ data: [] }));
       setDepartments(json.data || []);
@@ -109,33 +114,72 @@ export default function ContractsClient(props: Props) {
     load();
   }, [qMunicipalityId]);
 
-  // navegação filtros
   const setParam = (key: string, value?: string | null) => {
     const params = new URLSearchParams(searchParams.toString());
-    if (value && value !== '') params.set(key, value);
+    if (value && value !== "") params.set(key, value);
     else params.delete(key);
-    params.set('page', '1');
+    params.set("page", "1");
     router.push(`?${params.toString()}`);
   };
 
-  const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => setParam('search', e.target.value);
+  // Busca no Enter para evitar push a cada tecla
+  const handleSearchKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key !== "Enter") return;
+    const v = (e.target as HTMLInputElement).value;
+    setParam("search", v && v.trim() !== "" ? v : "");
+  };
+
   const handleMunicipality = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setParam('municipalityId', e.target.value);
+    const value = e.target.value;
     const params = new URLSearchParams(searchParams.toString());
-    params.delete('departmentId');
-    params.set('page', '1');
+    if (value) params.set("municipalityId", value);
+    else params.delete("municipalityId");
+    // ao trocar município, zera órgão
+    params.delete("departmentId");
+    params.set("page", "1");
     router.push(`?${params.toString()}`);
   };
-  const handleDepartment = (e: React.ChangeEvent<HTMLSelectElement>) => setParam('departmentId', e.target.value);
-  const handleEndFrom = (e: React.ChangeEvent<HTMLInputElement>) => setParam('endFrom', e.target.value);
-  const handleEndTo = (e: React.ChangeEvent<HTMLInputElement>) => setParam('endTo', e.target.value);
-  const handleDueIn = (e: React.ChangeEvent<HTMLInputElement>) => setParam('dueInDays', e.target.value);
-  const handleExpiredOnly = (e: React.ChangeEvent<HTMLInputElement>) => setParam('expiredOnly', e.target.checked ? 'true' : '');
-  const handleOrder = (e: React.ChangeEvent<HTMLSelectElement>) => setParam('order', e.target.value);
 
-  const openCreate = () => { setEditing(null); setIsFormOpen(true); };
-  const openEdit = (c: Contract) => { setEditing(c); setIsFormOpen(true); };
-  const confirmDelete = (c: Contract) => { setDeleting(c); setIsDeleteModalOpen(true); };
+  const handleDepartment = (e: React.ChangeEvent<HTMLSelectElement>) => setParam("departmentId", e.target.value);
+  const handleEndFrom = (e: React.ChangeEvent<HTMLInputElement>) => setParam("endFrom", e.target.value);
+  const handleEndTo = (e: React.ChangeEvent<HTMLInputElement>) => setParam("endTo", e.target.value);
+  const handleDueIn = (e: React.ChangeEvent<HTMLInputElement>) => setParam("dueInDays", e.target.value);
+  const handleExpiredOnly = (e: React.ChangeEvent<HTMLInputElement>) => setParam("expiredOnly", e.target.checked ? "true" : "");
+  const handleOrder = (e: React.ChangeEvent<HTMLSelectElement>) => setParam("order", e.target.value);
+
+  const clearFilters = () => {
+    const keep: Array<[string, string]> = []; // se quiser manter algo, adicione aqui
+    const params = new URLSearchParams(keep);
+    params.set("page", "1");
+    router.push(`?${params.toString()}`);
+  };
+
+  const contracts = useMemo(() => initialContracts, [initialContracts]);
+
+  const onDelete = async () => {
+    if (!deleting) return;
+    setIsDeleting(true);
+    try {
+      const res = await fetch(`${API_BASE}/contracts/${deleting.id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Falha ao excluir contrato.");
+      setIsDeleteModalOpen(false);
+      setDeleting(null);
+      router.refresh();
+    } catch (e: any) {
+      alert(e?.message ?? "Erro ao excluir contrato.");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const openCreate = () => {
+    setEditing(null);
+    setIsFormOpen(true);
+  };
+  const openEdit = (c: Contract) => {
+    setEditing(c);
+    setIsFormOpen(true);
+  };
 
   return (
     <>
@@ -150,19 +194,13 @@ export default function ContractsClient(props: Props) {
       {/* Modal de Exclusão */}
       {isDeleteModalOpen && deleting && (
         <DeleteConfirmationModal
-          itemName={`${deleting.code} – ${deleting.municipality?.name ?? ''}`}
-          onConfirm={async () => {
-            try {
-              await fetch(`${API_BASE}/contracts/${deleting.id}`, { method: 'DELETE' });
-              setIsDeleteModalOpen(false);
-              setDeleting(null);
-              router.refresh();
-            } catch {
-              alert('Erro ao excluir contrato.');
-            }
+          itemName={`${deleting.code} – ${deleting.municipality?.name ?? ""}`}
+          onConfirm={onDelete}
+          onClose={() => {
+            setIsDeleteModalOpen(false);
+            setDeleting(null);
           }}
-          onClose={() => { setIsDeleteModalOpen(false); setDeleting(null); }}
-          isDeleting={false}
+          isDeleting={isDeleting}
         />
       )}
 
@@ -189,8 +227,8 @@ export default function ContractsClient(props: Props) {
               <label className="block text-xs text-gray-500 mb-1">Buscar (código/descr.)</label>
               <input
                 type="text"
-                value={qSearch}
-                onChange={handleSearch}
+                defaultValue={qSearch}
+                onKeyDown={handleSearchKey}
                 className="w-full border rounded-md px-3 py-2"
                 placeholder="Ex.: CT 001/2025"
               />
@@ -198,29 +236,35 @@ export default function ContractsClient(props: Props) {
 
             <div>
               <label className="block text-xs text-gray-500 mb-1">Município</label>
-              <select title="Município"
+              <select
+                title="Município"
                 value={qMunicipalityId}
                 onChange={handleMunicipality}
                 className="w-full border rounded-md px-3 py-2 bg-white"
               >
                 <option value="">Todos</option>
-                {municipalities.map(m => (
-                  <option key={m.id} value={m.id}>{m.name}</option>
+                {municipalities.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name}
+                  </option>
                 ))}
               </select>
             </div>
 
             <div>
               <label className="block text-xs text-gray-500 mb-1">Órgão/Secretaria</label>
-              <select title="Órgão/Secretaria"
+              <select
+                title="Órgão/Secretaria"
                 value={qDepartmentId}
                 onChange={handleDepartment}
                 className="w-full border rounded-md px-3 py-2 bg-white"
                 disabled={!qMunicipalityId}
               >
                 <option value="">Todos</option>
-                {departments.map(d => (
-                  <option key={d.id} value={d.id}>{d.name}</option>
+                {departments.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.name}
+                  </option>
                 ))}
               </select>
             </div>
@@ -262,15 +306,18 @@ export default function ContractsClient(props: Props) {
               <input
                 id="expiredOnly"
                 type="checkbox"
-                checked={qExpiredOnly === 'true'}
+                checked={qExpiredOnly === "true"}
                 onChange={handleExpiredOnly}
               />
-              <label htmlFor="expiredOnly" className="text-sm text-gray-700">Apenas expirados</label>
+              <label htmlFor="expiredOnly" className="text-sm text-gray-700">
+                Apenas expirados
+              </label>
             </div>
 
             <div>
               <label className="block text-xs text-gray-500 mb-1">Ordenar por fim</label>
-              <select title="Ordenar por fim"
+              <select
+                title="Ordenar por fim"
                 value={qOrder}
                 onChange={handleOrder}
                 className="w-full border rounded-md px-3 py-2 bg-white"
@@ -278,6 +325,16 @@ export default function ContractsClient(props: Props) {
                 <option value="asc">Mais antigos → recentes</option>
                 <option value="desc">Mais recentes → antigos</option>
               </select>
+            </div>
+
+            <div className="flex items-end">
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="px-3 py-2 border rounded-md text-gray-700 hover:bg-gray-50"
+              >
+                Limpar filtros
+              </button>
             </div>
           </div>
         </div>
@@ -319,15 +376,15 @@ export default function ContractsClient(props: Props) {
             <tbody>
               {contracts.map((c) => {
                 const period = [
-                  c.startDate ? format(new Date(c.startDate), 'dd/MM/yyyy', { locale: ptBR }) : '—',
-                  c.endDate ? format(new Date(c.endDate), 'dd/MM/yyyy', { locale: ptBR }) : '—',
-                ].join(' → ');
+                  c.startDate ? format(new Date(c.startDate), "dd/MM/yyyy", { locale: ptBR }) : "—",
+                  c.endDate ? format(new Date(c.endDate), "dd/MM/yyyy", { locale: ptBR }) : "—",
+                ].join(" → ");
 
                 return (
                   <tr key={c.id} className="border-b hover:bg-gray-50 last:border-b-0">
                     <td className="p-3 font-medium text-gray-800">{c.code}</td>
                     <td className="p-3 text-gray-700">{c.municipality?.name}</td>
-                    <td className="p-3 text-gray-700">{c.department?.name ?? '—'}</td>
+                    <td className="p-3 text-gray-700">{c.department?.name ?? "—"}</td>
                     <td className="p-3 text-gray-700">
                       <div className="flex items-center gap-1">
                         <Calendar size={16} className="text-gray-400" />
@@ -344,9 +401,7 @@ export default function ContractsClient(props: Props) {
                         >
                           <Clock size={12} />
                           {c.alertTag}
-                          {typeof c.daysToEnd === 'number' && (
-                            <span className="opacity-80 ml-1">({c.daysToEnd}d)</span>
-                          )}
+                          {typeof c.daysToEnd === "number" && <span className="opacity-80 ml-1">({c.daysToEnd}d)</span>}
                         </span>
                       )}
                     </td>
@@ -360,7 +415,10 @@ export default function ContractsClient(props: Props) {
                           <Pencil size={18} />
                         </button>
                         <button
-                          onClick={() => confirmDelete(c)}
+                          onClick={() => {
+                            setDeleting(c);
+                            setIsDeleteModalOpen(true);
+                          }}
                           className="text-gray-400 hover:text-red-600"
                           title="Excluir"
                         >
@@ -383,7 +441,6 @@ export default function ContractsClient(props: Props) {
           </table>
         </div>
 
-        {/* Paginação (padrão do app) */}
         <Pagination currentPage={currentPage} totalPages={totalPages} />
       </div>
     </>
