@@ -17,10 +17,10 @@ import {
   Contact,
   Users,
   BarChart2,
-  Plane,         // ⟵ ícone Despesas de Viagem
-  FilePieChart,  // ⟵ ícone Relatório de Despesas
-  FileText,      // ⟵ ícone Contratos
-  HandCoins,     // ⟵ ícone Recebidos
+  Plane,         // ícone Despesas de Viagem
+  FilePieChart,  // ícone Relatório de Despesas de Viagem
+  FileText,      // ícone Contratos
+  HandCoins,     // ícone Recebidos
   ChevronsLeft,
   ChevronsRight,
 } from "lucide-react";
@@ -45,10 +45,9 @@ const financeiroLinks = [
   { href: "/dashboard/accounts-payable/reports", label: "Relatório de Contas a Pagar", icon: BarChart2, module: UserModule.RELATORIO_CONTAS_PAGAR },
   { href: "/dashboard/contacts", label: "Lista de Contatos", icon: Contact, module: UserModule.CONTATOS },
 
-  // Obs.: usando CONTAS_PAGAR como permissão base para não quebrar seu enum.
-  // Se depois você criar UserModule.TRAVEL_EXPENSES / TRAVEL_EXPENSES_REPORT, é só trocar aqui.
+  // Despesas de viagem + relatório
   { href: "/dashboard/travel-expenses", label: "Despesas de Viagem", icon: Plane, module: UserModule.CONTAS_PAGAR },
-  { href: "/dashboard/reports/travel-expenses", label: "Relatório de Despesas (Em Construção)", icon: FilePieChart, module: UserModule.RELATORIOS },
+  { href: "/dashboard/reports/travel-expenses", label: "Relatório de Despesas de Viagem", icon: FilePieChart, module: UserModule.RELATORIOS },
 
   // Recebidos (financeiro)
   { href: "/dashboard/receivables", label: "Recebidos", icon: HandCoins, module: UserModule.CONTAS_PAGAR },
@@ -56,8 +55,6 @@ const financeiroLinks = [
 
 /** 🏛️ PREFEITURA */
 const prefeituraLinks = [
-  // Mantendo a mesma regra de permissão por enquanto (CONTAS_PAGAR).
-  // Quando criar enums específicos (ex.: CONTRATOS / RECEBIVEIS), basta atualizar aqui.
   { href: "/dashboard/contracts", label: "Contratos", icon: FileText, module: UserModule.CONTAS_PAGAR },
   { href: "/dashboard/departments", label: "Órgãos / Secretarias", icon: Landmark, module: UserModule.CONTAS_PAGAR },
   { href: "/dashboard/municipalities", label: "Municípios", icon: Landmark, module: UserModule.CONTAS_PAGAR },
@@ -87,63 +84,50 @@ export function Sidebar() {
     );
   }
 
-  // ✅ Permissões mais robustas (cobre "*", array ou string/CSV)
+  // ✅ Permissões mais robustas
   const canAccessModule = (module: UserModule) => {
-    if (user.role === "ADMIN") return true; // Admin tem acesso total
-
+    if (user.role === "ADMIN") return true;
     const mods = user.modules as unknown;
     if (mods === "*") return true;
-
-    if (Array.isArray(mods)) {
-      return (mods as UserModule[]).includes(module);
-    }
-
+    if (Array.isArray(mods)) return (mods as UserModule[]).includes(module);
     if (typeof mods === "string") {
       const parts = mods.split(",").map((s) => s.trim());
-      // compara por string do enum (garante compatibilidade)
       return parts.includes(String(module));
     }
-
     return false;
   };
 
-  // Helper para verificar link ativo
-  const checkIsActive = (href: string) => (href === "/dashboard" ? pathname === href : pathname.startsWith(href));
+  // Ativo
+  const checkIsActive = (href: string) =>
+    href === "/dashboard" ? pathname === href : pathname.startsWith(href);
 
-  // Render genérico de sessão para evitar repetição
+  // Render seção
   const renderSection = (title: string, links: typeof estoqueLinks) => (
     <div>
-      {/* Título da seção */}
       <p
-        className={`text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 ${collapsed ? "px-0 text-center" : "px-2"
-          }`}
+        className={`text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 ${collapsed ? "px-0 text-center" : "px-2"}`}
         title={collapsed ? title : undefined}
       >
         {collapsed ? title.slice(0, 1) : title}
       </p>
-
-      {/* Lista de links */}
       <ul>
-        {links
-          .filter((link) => canAccessModule(link.module))
-          .map((link) => {
-            const isActive = checkIsActive(link.href);
-            return (
-              <li key={link.href}>
-                <Link
-                  href={link.href}
-                  title={link.label} // ajuda no modo compacto
-                  aria-current={isActive ? "page" : undefined}
-                  className={`flex items-center ${collapsed ? "justify-center" : "gap-3"} py-2 ${collapsed ? "px-0" : "px-3"
-                    } rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-blue-300 ${isActive ? "bg-blue-50 text-blue-600 font-semibold" : "text-gray-700 hover:bg-gray-100"
-                    }`}
-                >
-                  <link.icon size={20} />
-                  {!collapsed && <span>{link.label}</span>}
-                </Link>
-              </li>
-            );
-          })}
+        {links.filter((l) => canAccessModule(l.module)).map((l) => {
+          const isActive = checkIsActive(l.href);
+          return (
+            <li key={l.href}>
+              <Link
+                href={l.href}
+                title={l.label}
+                aria-current={isActive ? "page" : undefined}
+                className={`flex items-center ${collapsed ? "justify-center" : "gap-3"} py-2 ${collapsed ? "px-0" : "px-3"} rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-blue-300 ${isActive ? "bg-blue-50 text-blue-600 font-semibold" : "text-gray-700 hover:bg-gray-100"
+                  }`}
+              >
+                <l.icon size={20} />
+                {!collapsed && <span>{l.label}</span>}
+              </Link>
+            </li>
+          );
+        })}
       </ul>
     </div>
   );
@@ -155,15 +139,12 @@ export function Sidebar() {
     >
       {/* Cabeçalho */}
       <div className="h-16 flex items-center justify-between px-4 border-b border-gray-200">
-        {/* Logo */}
         <h1
           className={`text-xl font-bold text-blue-600 truncate ${collapsed ? "opacity-0 pointer-events-none w-0" : "opacity-100"
             } transition-opacity`}
         >
           Monitore
         </h1>
-
-        {/* Botão colapsar/expandir */}
         <button
           onClick={() => setCollapsed((v) => !v)}
           className="p-2 rounded-md hover:bg-gray-100 text-gray-600"
@@ -173,22 +154,15 @@ export function Sidebar() {
         </button>
       </div>
 
-      {/* Navegação com rolagem interna */}
+      {/* Navegação */}
       <nav className="flex-grow p-4 space-y-6 overflow-y-auto">
-        {/* 🟦 ESTOQUE */}
         {renderSection("Estoque", estoqueLinks)}
-
-        {/* 💸 FINANCEIRO */}
         {renderSection("Financeiro", financeiroLinks)}
-
-        {/* 🏛️ PREFEITURA */}
         {renderSection("Prefeitura", prefeituraLinks)}
-
-        {/* 👤 USUÁRIOS */}
         {renderSection("Usuários", usuariosLinks)}
       </nav>
 
-      {/* Perfil do Usuário (fixo no rodapé) */}
+      {/* Rodapé / usuário */}
       <div className="p-4 border-t border-gray-200">
         <div className={`flex items-center gap-3 ${collapsed ? "justify-center" : ""}`}>
           <UserCircle size={40} className="text-gray-400" />
@@ -200,8 +174,8 @@ export function Sidebar() {
           )}
           <button
             onClick={() => {
-              logout(); // Limpa o usuário e o cookie
-              router.push("/login"); // Redireciona para o login
+              logout();
+              router.push("/login");
             }}
             className="text-gray-400 hover:text-red-500"
             title="Sair"
