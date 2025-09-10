@@ -25,16 +25,26 @@ type Receivable = {
   status: 'A_RECEBER' | 'ATRASADO' | 'RECEBIDO';
 };
 
+// shape aceito pelo modal (contract simplificado e opcional)
+type ModalReceivable = Receivable & {
+  contract?: { municipalityId: number; departmentId: number | null };
+};
+
 type Props = {
   onClose: () => void;
-  receivableToEdit?: (Receivable & {
-    contract?: { municipalityId: number; departmentId: number | null };
-  }) | null;
+  onSaved?: () => void;
+  receivableToEdit?: ModalReceivable | null;
   presetMunicipalityId?: number;
   presetDepartmentId?: number;
 };
 
-export default function ReceivablesFormModal({ onClose, receivableToEdit, presetMunicipalityId, presetDepartmentId }: Props) {
+export default function ReceivablesFormModal({
+  onClose,
+  onSaved,
+  receivableToEdit,
+  presetMunicipalityId,
+  presetDepartmentId
+}: Props) {
   const router = useRouter();
   const isEdit = Boolean(receivableToEdit);
 
@@ -79,7 +89,7 @@ export default function ReceivablesFormModal({ onClose, receivableToEdit, preset
       setForm(prev => ({
         ...prev,
         municipalityId: receivableToEdit.contract?.municipalityId ? String(receivableToEdit.contract.municipalityId) : prev.municipalityId,
-        departmentId: receivableToEdit.contract?.departmentId ? String(receivableToEdit.contract.departmentId) : '',
+        departmentId: receivableToEdit.contract?.departmentId != null ? String(receivableToEdit.contract.departmentId) : '',
         contractId: String(receivableToEdit.contractId),
         noteNumber: receivableToEdit.noteNumber ?? '',
         issueDate: receivableToEdit.issueDate ? receivableToEdit.issueDate.slice(0, 10) : '',
@@ -170,7 +180,7 @@ export default function ReceivablesFormModal({ onClose, receivableToEdit, preset
         throw new Error(j.message || 'Falha ao salvar recebido.');
       }
 
-      router.refresh();
+      onSaved?.(); // deixa o Client decidir (fechar + refresh)
       onClose();
     } catch (e: any) {
       setErr(e.message);
@@ -291,7 +301,7 @@ export default function ReceivablesFormModal({ onClose, receivableToEdit, preset
             <button type="button" onClick={onClose} disabled={isSubmitting} className="py-2 px-4 border rounded-lg">
               Cancelar
             </button>
-            <button type="submit" disabled={isSubmitting} onClick={handleSubmit} className="py-2 px-4 bg-blue-600 text-white rounded-lg">
+            <button type="submit" disabled={isSubmitting} className="py-2 px-4 bg-blue-600 text-white rounded-lg">
               {isEdit ? (isSubmitting ? 'Salvando...' : 'Salvar Alterações') : (isSubmitting ? 'Criando...' : 'Criar Recebido')}
             </button>
           </div>

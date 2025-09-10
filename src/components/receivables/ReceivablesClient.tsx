@@ -1,7 +1,7 @@
 // src/app/dashboard/components/receivables/ReceivablesClient.tsx
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   PlusCircle,
@@ -45,7 +45,7 @@ type Receivable = {
     departmentId: number | null;
     municipality?: { id: number; name: string };
     department?: { id: number; name: string; municipalityId: number };
-  };
+  } | null;
 };
 
 type Props = {
@@ -72,6 +72,11 @@ const statusLabel: Record<Receivable["status"], string> = {
   RECEBIDO: "Recebido",
 };
 
+// shape aceito pelo modal (contrato simplificado e opcional)
+type ModalReceivable = Omit<Receivable, "contract"> & {
+  contract?: { municipalityId: number; departmentId: number | null };
+};
+
 export default function ReceivablesClient(props: Props) {
   const {
     initialReceivables,
@@ -86,18 +91,39 @@ export default function ReceivablesClient(props: Props) {
 
   const [rows] = useState<Receivable[]>(initialReceivables);
 
+  // ===== KPIs agregados do dataset atual =====
+  const kpis = React.useMemo(() => {
+    const acc = {
+      total: rows.length,
+      aReceber: 0,
+      atrasado: 0,
+      recebido: 0,
+      bruto: 0,
+      liquido: 0,
+    };
+    for (const r of rows) {
+      if (r.status === "A_RECEBER") acc.aReceber++;
+      if (r.status === "ATRASADO") acc.atrasado++;
+      if (r.status === "RECEBIDO") acc.recebido++;
+      acc.bruto += r.grossAmount ?? 0;
+      acc.liquido += r.netAmount ?? 0;
+    }
+    return acc;
+  }, [rows]);
+
   // modal excluir
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState<Receivable | null>(null);
 
   // modal form
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const [editing, setEditing] = useState<Receivable | null>(null);
+  const [editing, setEditing] = useState<Receivable | undefined>(undefined);
 
   // filtros (querystring)
   const qSearch = searchParams.get("search") || "";
   const qMunicipalityId = searchParams.get("municipalityId") || "";
   const qDepartmentId = searchParams.get("departmentId") || "";
+  const qContractId = searchParams.get("contractId") || "";
   const qStatus = searchParams.get("status") || "";
   const qIssueFrom = searchParams.get("issueFrom") || "";
   const qIssueTo = searchParams.get("issueTo") || "";
@@ -116,15 +142,14 @@ export default function ReceivablesClient(props: Props) {
       const res = await fetch(
         `${API_BASE}/departments?municipalityId=${qMunicipalityId}&limit=9999`
       );
-      const json = await res.json().catch(() => ({ data: [] }));
+      const json = await res.json().catch(() => ({ data: [] as Department[] }));
       setDepartments(json.data || []);
     };
     load();
   }, [qMunicipalityId]);
 
-  // contratos dependentes do órgão (opcional — lista curta para pesquisa)
+  // contratos dependentes (para filtro)
   const [contracts, setContracts] = useState<Contract[]>([]);
-  const qContractId = searchParams.get("contractId") || "";
   useEffect(() => {
     const load = async () => {
       const qs = new URLSearchParams();
@@ -133,10 +158,9 @@ export default function ReceivablesClient(props: Props) {
       qs.set("limit", "9999");
 
       const res = await fetch(`${API_BASE}/contracts?${qs.toString()}`);
-      const json = await res.json().catch(() => ({ data: [] }));
-      const list: Receivable[] = json.data || [];
-      // mapear {id, code}
-      setContracts(list.map((c: any) => ({ id: c.id, code: c.code })));
+      const json = await res.json().catch(() => ({ data: [] as any[] }));
+      const list: any[] = json.data || [];
+      setContracts(list.map((c) => ({ id: c.id, code: c.code } as Contract)));
     };
     load();
   }, [qMunicipalityId, qDepartmentId]);
@@ -187,31 +211,32 @@ export default function ReceivablesClient(props: Props) {
   const handleOrder = (e: React.ChangeEvent<HTMLSelectElement>) =>
     setParam("order", e.target.value);
 
-  // options estáticas
-  const statusOptions = [
-    { value: "", label: "Todos" },
-    { value: "A_RECEBER", label: "A Receber" },
-    { value: "ATRASADO", label: "Atrasado" },
-    { value: "RECEBIDO", label: "Recebido" },
-  ];
-
-  const orderByOptions = [
-    { value: "issueDate", label: "Emissão" },
-    { value: "receivedAt", label: "Recebimento" },
-    { value: "grossAmount", label: "Valor Bruto" },
-  ];
-
   const orderIcon =
     qOrder === "asc" ? <SortAsc size={14} /> : <SortDesc size={14} />;
 
-  // ===== RENDER =====
+  // 🔧 Adapter: remove o `contract` original e injeta o mini-contrato opcional
+  const adaptForModal = (r?: Receivable): ModalReceivable | undefined => {
+    if (!r) return undefined;
+    const mini =
+      r.contract != null
+        ? { municipalityId: r.contract.municipalityId, departmentId: r.contract.departmentId }
+        : undefined;
+    const { contract: _discard, ...rest } = r; // remove o contrato “grande”
+    return { ...rest, contract: mini };
+  };
+
+  const openEdit = (r: Receivable) => {
+    setEditing(r);
+    setIsFormOpen(true);
+  };
+
   return (
     <>
       {/* Modal Form */}
       {isFormOpen && (
         <ReceivablesFormModal
           onClose={() => setIsFormOpen(false)}
-          receivableToEdit={editing}
+          receivableToEdit={adaptForModal(editing)}
         />
       )}
 
@@ -250,7 +275,7 @@ export default function ReceivablesClient(props: Props) {
           </div>
           <button
             onClick={() => {
-              setEditing(null);
+              setEditing(undefined);
               setIsFormOpen(true);
             }}
             className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2"
@@ -258,6 +283,32 @@ export default function ReceivablesClient(props: Props) {
             <PlusCircle size={20} />
             <span>Novo Recebido</span>
           </button>
+        </div>
+
+        {/* KPIs */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-4">
+          <div className="bg-white rounded-xl p-3 shadow-sm">
+            <p className="text-xs text-gray-500">Total</p>
+            <p className="text-lg font-semibold">{kpis.total}</p>
+          </div>
+          <div className="bg-white rounded-xl p-3 shadow-sm">
+            <p className="text-xs text-gray-500">A Receber</p>
+            <p className="text-lg font-semibold">{kpis.aReceber}</p>
+          </div>
+          <div className="bg-white rounded-xl p-3 shadow-sm">
+            <p className="text-xs text-gray-500">Atrasado</p>
+            <p className="text-lg font-semibold">{kpis.atrasado}</p>
+          </div>
+          <div className="bg-white rounded-xl p-3 shadow-sm">
+            <p className="text-xs text-gray-500">Recebido</p>
+            <p className="text-lg font-semibold">{kpis.recebido}</p>
+          </div>
+          <div className="bg-white rounded-xl p-3 shadow-sm lg:col-span-1 sm:col-span-2">
+            <p className="text-xs text-gray-500">Σ Líquido</p>
+            <p className="text-lg font-semibold">
+              {kpis.liquido.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+            </p>
+          </div>
         </div>
 
         {/* Filtros */}
@@ -345,7 +396,12 @@ export default function ReceivablesClient(props: Props) {
                 className="w-full border rounded-md px-3 py-2 bg-white"
                 title="Status"
               >
-                {statusOptions.map((o) => (
+                {[
+                  { value: "", label: "Todos" },
+                  { value: "A_RECEBER", label: "A Receber" },
+                  { value: "ATRASADO", label: "Atrasado" },
+                  { value: "RECEBIDO", label: "Recebido" },
+                ].map((o) => (
                   <option key={o.value} value={o.value}>
                     {o.label}
                   </option>
@@ -388,9 +444,13 @@ export default function ReceivablesClient(props: Props) {
                 className="w-full border rounded-md px-3 py-2 bg-white"
                 title="Ordenar por"
               >
-                {orderByOptions.map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
+                {["issueDate", "receivedAt", "grossAmount"].map((v) => (
+                  <option key={v} value={v}>
+                    {v === "issueDate"
+                      ? "Emissão"
+                      : v === "receivedAt"
+                        ? "Recebimento"
+                        : "Valor Bruto"}
                   </option>
                 ))}
               </select>
@@ -409,7 +469,9 @@ export default function ReceivablesClient(props: Props) {
                 <option value="asc">Ascendente</option>
                 <option value="desc">Descendente</option>
               </select>
-              <div className="mt-1 text-gray-400">{orderIcon}</div>
+              <div className="mt-1 text-gray-400">
+                {qOrder === "asc" ? <SortAsc size={14} /> : <SortDesc size={14} />}
+              </div>
             </div>
           </div>
         </div>
@@ -478,7 +540,7 @@ export default function ReceivablesClient(props: Props) {
 
                 return (
                   <tr key={r.id} className="border-b hover:bg-gray-50 last:border-b-0">
-                    <td className="p-3 text-gray-700">{r.contract?.code}</td>
+                    <td className="p-3 text-gray-700">{r.contract?.code ?? "—"}</td>
                     <td className="p-3 text-gray-700">{r.noteNumber ?? "—"}</td>
                     <td className="p-3 text-gray-700">
                       <div className="flex items-center gap-1">
@@ -501,10 +563,7 @@ export default function ReceivablesClient(props: Props) {
                     <td className="p-3">
                       <div className="flex items-center gap-2">
                         <button
-                          onClick={() => {
-                            setEditing(r);
-                            setIsFormOpen(true);
-                          }}
+                          onClick={() => openEdit(r)}
                           className="text-gray-400 hover:text-blue-600"
                           title="Editar"
                         >

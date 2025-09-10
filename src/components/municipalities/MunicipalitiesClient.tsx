@@ -16,7 +16,7 @@ type Municipality = {
 };
 
 type Props = {
-  initialRows: Municipality[];
+  initialRows: Municipality[] | undefined; // pode vir undefined do server
   total: number;
   page: number;
   totalPages: number;
@@ -32,7 +32,8 @@ export default function MunicipalitiesClient({
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const [rows] = useState<Municipality[]>(initialRows);
+  // ✅ fallback seguro para evitar "Cannot read properties of undefined (reading 'map')"
+  const [rows] = useState<Municipality[]>(initialRows ?? []);
 
   // modal form
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -41,6 +42,7 @@ export default function MunicipalitiesClient({
   // modal delete
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [deleting, setDeleting] = useState<Municipality | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // filtros (query string)
   const qSearch = searchParams.get('search') || '';
@@ -75,16 +77,19 @@ export default function MunicipalitiesClient({
           itemName={`${deleting.name}`}
           onConfirm={async () => {
             try {
+              setIsDeleting(true);
               await fetch(`${API_BASE}/municipalities/${deleting.id}`, { method: 'DELETE' });
               setIsDeleteModalOpen(false);
               setDeleting(null);
               router.refresh();
             } catch {
               alert('Erro ao excluir município.');
+            } finally {
+              setIsDeleting(false);
             }
           }}
           onClose={() => { setIsDeleteModalOpen(false); setDeleting(null); }}
-          isDeleting={false}
+          isDeleting={isDeleting}
         />
       )}
 
@@ -131,7 +136,7 @@ export default function MunicipalitiesClient({
               </tr>
             </thead>
             <tbody>
-              {rows.map((m) => (
+              {(rows ?? []).map((m) => (
                 <tr key={m.id} className="border-b hover:bg-gray-50 last:border-b-0">
                   <td className="p-3 font-medium text-gray-800">{m.name}</td>
                   <td className="p-3 text-gray-700">{m.cnpj ?? '—'}</td>
@@ -156,7 +161,7 @@ export default function MunicipalitiesClient({
                 </tr>
               ))}
 
-              {rows.length === 0 && (
+              {(rows ?? []).length === 0 && (
                 <tr>
                   <td colSpan={3} className="p-6 text-center text-gray-500">
                     Nenhum município encontrado.
