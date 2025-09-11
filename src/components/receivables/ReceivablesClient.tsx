@@ -1,7 +1,7 @@
 // src/app/dashboard/components/receivables/ReceivablesClient.tsx
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   PlusCircle,
@@ -14,6 +14,7 @@ import {
   SortDesc,
   CheckCircle2,
   CircleDashed,
+  Download,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -50,6 +51,11 @@ type Receivable = {
   } | null;
 };
 
+// shape aceito pelo modal (contrato simplificado e opcional)
+type ModalReceivable = Omit<Receivable, "contract"> & {
+  contract?: { municipalityId: number; departmentId: number | null };
+};
+
 type Props = {
   initialReceivables: Receivable[];
   totalReceivables: number;
@@ -74,19 +80,8 @@ const statusLabel: Record<Receivable["status"], string> = {
   RECEBIDO: "Recebido",
 };
 
-// shape aceito pelo modal (contrato simplificado e opcional)
-type ModalReceivable = Omit<Receivable, "contract"> & {
-  contract?: { municipalityId: number; departmentId: number | null };
-};
-
 export default function ReceivablesClient(props: Props) {
-  const {
-    initialReceivables,
-    totalReceivables,
-    page,
-    totalPages,
-    municipalities,
-  } = props;
+  const { initialReceivables, page, totalPages, municipalities } = props;
 
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -94,7 +89,7 @@ export default function ReceivablesClient(props: Props) {
   const [rows] = useState<Receivable[]>(initialReceivables);
 
   // ===== KPIs agregados do dataset atual =====
-  const kpis = React.useMemo(() => {
+  const kpis = useMemo(() => {
     const acc = {
       total: rows.length,
       aReceber: 0,
@@ -121,7 +116,7 @@ export default function ReceivablesClient(props: Props) {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editing, setEditing] = useState<Receivable | undefined>(undefined);
 
-  // processamento por linha (marcar como recebido)
+  // processamento por linha (marcar como recebido) — declare APENAS UMA vez
   const [processing, setProcessing] = useState<Set<number>>(new Set());
 
   // filtros (querystring)
@@ -224,7 +219,10 @@ export default function ReceivablesClient(props: Props) {
     if (!r) return undefined;
     const mini =
       r.contract != null
-        ? { municipalityId: r.contract.municipalityId, departmentId: r.contract.departmentId }
+        ? {
+          municipalityId: r.contract.municipalityId,
+          departmentId: r.contract.departmentId,
+        }
         : undefined;
     const { contract: _discard, ...rest } = r; // remove o contrato “grande”
     return { ...rest, contract: mini };
@@ -263,6 +261,70 @@ export default function ReceivablesClient(props: Props) {
         return next;
       });
     }
+  };
+
+  // 📤 Exportar CSV (linhas atuais)
+  const exportCSV = () => {
+    const esc = (val: string) => {
+      const needsQuote = /[;"\n\r]/.test(val);
+      const out = val.replace(/"/g, '""');
+      return needsQuote ? `"${out}"` : out;
+    };
+    const fmtDate = (s: string | null) =>
+      s ? format(new Date(s), "dd/MM/yyyy", { locale: ptBR }) : "";
+
+    const headers = [
+      "Contrato",
+      "NF",
+      "Período",
+      "Emissão",
+      "Entrega",
+      "Recebido em",
+      "Status",
+      "Valor Bruto",
+      "Valor Líquido",
+    ];
+
+    const lines = rows.map((r) => {
+      const period =
+        r.periodStart || r.periodEnd
+          ? [
+            r.periodStart ? fmtDate(r.periodStart) : "—",
+            r.periodEnd ? fmtDate(r.periodEnd) : "—",
+          ].join(" → ")
+          : r.periodLabel || "—";
+
+      const cols = [
+        r.contract?.code ?? "",
+        r.noteNumber ?? "",
+        period,
+        fmtDate(r.issueDate),
+        fmtDate(r.deliveryDate),
+        fmtDate(r.receivedAt),
+        statusLabel[r.status],
+        (r.grossAmount ?? 0).toLocaleString("pt-BR", {
+          style: "currency",
+          currency: "BRL",
+        }),
+        (r.netAmount ?? 0).toLocaleString("pt-BR", {
+          style: "currency",
+          currency: "BRL",
+        }),
+      ];
+      return cols.map((c) => esc(String(c))).join(";");
+    });
+
+    const csv = [headers.join(";"), ...lines].join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const now = format(new Date(), "yyyyMMdd-HHmmss");
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `recebidos-${now}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -308,16 +370,26 @@ export default function ReceivablesClient(props: Props) {
               Notas / parcelas recebíveis por contrato
             </p>
           </div>
-          <button
-            onClick={() => {
-              setEditing(undefined);
-              setIsFormOpen(true);
-            }}
-            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2"
-          >
-            <PlusCircle size={20} />
-            <span>Novo Recebido</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={exportCSV}
+              className="border border-gray-300 hover:bg-gray-50 text-gray-700 font-medium py-2 px-3 rounded-lg flex items-center gap-2"
+              title="Exportar CSV (linhas atuais)"
+            >
+              <Download size={18} />
+              <span>Exportar CSV</span>
+            </button>
+            <button
+              onClick={() => {
+                setEditing(undefined);
+                setIsFormOpen(true);
+              }}
+              className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2"
+            >
+              <PlusCircle size={20} />
+              <span>Novo Recebido</span>
+            </button>
+          </div>
         </div>
 
         {/* KPIs */}
@@ -609,7 +681,11 @@ export default function ReceivablesClient(props: Props) {
                               }`}
                             title="Marcar como recebido"
                           >
-                            {isBusy ? <CircleDashed size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
+                            {isBusy ? (
+                              <CircleDashed size={16} className="animate-spin" />
+                            ) : (
+                              <CheckCircle2 size={16} />
+                            )}
                             <span>Recebido</span>
                           </button>
                         )}
