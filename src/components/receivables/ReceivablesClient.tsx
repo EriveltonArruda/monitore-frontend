@@ -12,6 +12,8 @@ import {
   Clock,
   SortAsc,
   SortDesc,
+  CheckCircle2,
+  CircleDashed,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -118,6 +120,9 @@ export default function ReceivablesClient(props: Props) {
   // modal form
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editing, setEditing] = useState<Receivable | undefined>(undefined);
+
+  // processamento por linha (marcar como recebido)
+  const [processing, setProcessing] = useState<Set<number>>(new Set());
 
   // filtros (querystring)
   const qSearch = searchParams.get("search") || "";
@@ -228,6 +233,36 @@ export default function ReceivablesClient(props: Props) {
   const openEdit = (r: Receivable) => {
     setEditing(r);
     setIsFormOpen(true);
+  };
+
+  // ✅ Ação rápida: marcar como RECEBIDO (com receivedAt = hoje)
+  const markAsReceived = async (r: Receivable) => {
+    if (r.status === "RECEBIDO") return;
+    setProcessing((prev) => new Set(prev).add(r.id));
+    try {
+      const payload = {
+        status: "RECEBIDO",
+        receivedAt: new Date().toISOString(),
+      };
+      const res = await fetch(`${API_BASE}/receivables/${r.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j.message || "Falha ao marcar como recebido.");
+      }
+      router.refresh();
+    } catch (err) {
+      alert((err as Error).message);
+    } finally {
+      setProcessing((prev) => {
+        const next = new Set(prev);
+        next.delete(r.id);
+        return next;
+      });
+    }
   };
 
   return (
@@ -507,7 +542,7 @@ export default function ReceivablesClient(props: Props) {
                 <th className="p-3 font-semibold text-gray-600">Emissão</th>
                 <th className="p-3 font-semibold text-gray-600">Valor Líquido</th>
                 <th className="p-3 font-semibold text-gray-600">Status</th>
-                <th className="p-3 font-semibold text-gray-600 w-32">Ações</th>
+                <th className="p-3 font-semibold text-gray-600 w-40">Ações</th>
               </tr>
             </thead>
             <tbody>
@@ -538,6 +573,8 @@ export default function ReceivablesClient(props: Props) {
                     locale: ptBR,
                   })}`;
 
+                const isBusy = processing.has(r.id);
+
                 return (
                   <tr key={r.id} className="border-b hover:bg-gray-50 last:border-b-0">
                     <td className="p-3 text-gray-700">{r.contract?.code ?? "—"}</td>
@@ -562,6 +599,20 @@ export default function ReceivablesClient(props: Props) {
                     </td>
                     <td className="p-3">
                       <div className="flex items-center gap-2">
+                        {r.status !== "RECEBIDO" && (
+                          <button
+                            onClick={() => markAsReceived(r)}
+                            disabled={isBusy}
+                            className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-sm transition-colors ${isBusy
+                                ? "opacity-60 cursor-not-allowed"
+                                : "hover:bg-emerald-50 border-emerald-600 text-emerald-700"
+                              }`}
+                            title="Marcar como recebido"
+                          >
+                            {isBusy ? <CircleDashed size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
+                            <span>Recebido</span>
+                          </button>
+                        )}
                         <button
                           onClick={() => openEdit(r)}
                           className="text-gray-400 hover:text-blue-600"
