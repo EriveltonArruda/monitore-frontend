@@ -27,8 +27,8 @@ type Contract = {
   status: string;
   signedAt?: string | null;
   processNumber?: string | null;
-  municipality: { id: number; name: string };
-  department: { id: number; name: string; municipalityId: number } | null;
+  municipality?: { id: number; name: string }; // torna opcional p/ evitar quebrazinhas
+  department?: { id: number; name: string; municipalityId: number } | null;
   daysToEnd: number | null;
   alertTag: "EXPIRADO" | "D-7" | "D-30" | "HOJE" | null;
 };
@@ -108,7 +108,7 @@ export default function ContractsClient(props: Props) {
         return;
       }
       const res = await fetch(`${API_BASE}/departments?municipalityId=${qMunicipalityId}&limit=9999`);
-      const json = await res.json().catch(() => ({ data: [] }));
+      const json = await res.json().catch(() => ({ data: [] as Department[] }));
       setDepartments(json.data || []);
     };
     load();
@@ -125,8 +125,8 @@ export default function ContractsClient(props: Props) {
   // Busca no Enter para evitar push a cada tecla
   const handleSearchKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key !== "Enter") return;
-    const v = (e.target as HTMLInputElement).value;
-    setParam("search", v && v.trim() !== "" ? v : "");
+    const v = (e.target as HTMLInputElement).value.trim();
+    setParam("search", v || "");
   };
 
   const handleMunicipality = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -181,13 +181,23 @@ export default function ContractsClient(props: Props) {
     setIsFormOpen(true);
   };
 
+  // presets para “Novo Contrato” com base nos filtros aplicados
+  const presetMunicipalityId = qMunicipalityId ? Number(qMunicipalityId) : undefined;
+  const presetDepartmentId = qDepartmentId ? Number(qDepartmentId) : undefined;
+
   return (
     <>
       {/* Modal de Form */}
       {isFormOpen && (
         <ContractFormModal
           onClose={() => setIsFormOpen(false)}
+          onSaved={() => {
+            setIsFormOpen(false);
+            router.refresh();
+          }}
           contractToEdit={editing}
+          presetMunicipalityId={editing ? undefined : presetMunicipalityId}
+          presetDepartmentId={editing ? undefined : presetDepartmentId}
         />
       )}
 
@@ -383,7 +393,7 @@ export default function ContractsClient(props: Props) {
                 return (
                   <tr key={c.id} className="border-b hover:bg-gray-50 last:border-b-0">
                     <td className="p-3 font-medium text-gray-800">{c.code}</td>
-                    <td className="p-3 text-gray-700">{c.municipality?.name}</td>
+                    <td className="p-3 text-gray-700">{c.municipality?.name ?? "—"}</td>
                     <td className="p-3 text-gray-700">{c.department?.name ?? "—"}</td>
                     <td className="p-3 text-gray-700">
                       <div className="flex items-center gap-1">

@@ -1,73 +1,58 @@
-import TravelExpensesPageClient from '@/components/travel-expenses/TravelExpensesPageClient';
+// src/app/dashboard/travel-expenses/page.tsx
+import TravelExpensesPageClient from "../../../components/travel-expenses/TravelExpensesPageClient";
 
-type TravelExpense = {
-  id: number;
-  employeeName?: string | null;
-  department?: string | null;
-  description?: string | null;
-  category?: string | null;
-  city?: string | null;
-  state?: string | null;
-  expenseDate?: string | null;
-  currency?: string | null;
-  amount: number;
-  reimbursedAmount: number;
-  status: string;
+export const revalidate = 0;
+
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:3001";
+
+type SearchParams = {
+  page?: string;
+  pageSize?: string; // backend usa pageSize
+  month?: string;
+  year?: string;
+  status?: string;
+  category?: string;
+  search?: string;
 };
 
-async function getPaginatedTravelExpenses(params: URLSearchParams) {
-  // MESMO PADRÃO DO ACCOUNTS-PAYABLE: URL ABSOLUTA FIXA
-  const response = await fetch(`http://localhost:3001/travel-expenses?${params.toString()}`, {
-    cache: 'no-store',
+async function getPaginatedTravelExpenses(qs: URLSearchParams) {
+  const res = await fetch(`${API_BASE}/travel-expenses?${qs.toString()}`, {
+    cache: "no-store",
   });
-  if (!response.ok) {
-    return { data: [], total: 0 };
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    // mantém shape básico pra não quebrar o Client
+    return { data: [], total: 0, page: 1, totalPages: 1, pageSize: 10 };
   }
-  return response.json();
+  return json;
 }
 
 export default async function TravelExpensesPage({
   searchParams,
 }: {
-  searchParams: { [key: string]: string | string[] | undefined };
+  searchParams: SearchParams;
 }) {
-  // manter o mesmo padrão do seu accounts-payable (mesmo que não seja Promise aqui)
-  const resolvedSearchParams = await searchParams as Record<string, string | string[] | undefined>;
+  // defaults
+  const page = Number(searchParams.page || 1);
+  const pageSize = Number(searchParams.pageSize || 10);
 
-  const params = new URLSearchParams();
+  // completa ano se vier só mês
+  const month = searchParams.month || "";
+  const year =
+    searchParams.year || (month ? String(new Date().getFullYear()) : "");
 
-  const getOne = (v: string | string[] | undefined, fallback = '') =>
-    Array.isArray(v) ? (v[0] ?? fallback) : (v ?? fallback);
-
-  const page = getOne(resolvedSearchParams['page'], '1');
-  const pageSize = getOne(resolvedSearchParams['pageSize'], '10');
-
-  let month = getOne(resolvedSearchParams['month'], '');
-  let year = getOne(resolvedSearchParams['year'], '');
-
-  // se veio mês sem ano, define ano atual
-  if (month && !year) {
-    year = String(new Date().getFullYear());
+  // monta query
+  const qs = new URLSearchParams();
+  qs.set("page", String(page));
+  qs.set("pageSize", String(pageSize));
+  if (month) qs.set("month", month);
+  if (year) qs.set("year", year);
+  if (searchParams.status) qs.set("status", searchParams.status);
+  if (searchParams.category) qs.set("category", searchParams.category);
+  if (searchParams.search && searchParams.search.trim() !== "") {
+    qs.set("search", searchParams.search);
   }
 
-  params.append('page', String(page));
-  params.append('pageSize', String(pageSize)); // o backend de travel-expenses usa 'pageSize'
-
-  if (month) params.append('month', String(month));
-  if (year) params.append('year', String(year));
-
-  const status = getOne(resolvedSearchParams['status']);
-  if (status) params.append('status', String(status));
-
-  const category = getOne(resolvedSearchParams['category']);
-  if (category) params.append('category', String(category));
-
-  const search = getOne(resolvedSearchParams['search']);
-  if (search && String(search).trim() !== '') {
-    params.append('search', String(search));
-  }
-
-  const initial = await getPaginatedTravelExpenses(params);
-
+  const initial = await getPaginatedTravelExpenses(qs);
   return <TravelExpensesPageClient initialData={initial} />;
 }

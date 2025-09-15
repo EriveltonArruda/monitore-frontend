@@ -24,7 +24,10 @@ type Department = { id: number; name: string; municipalityId: number };
 
 type Props = {
   onClose: () => void;
+  onSaved?: () => void; // ✅ permite que o pai feche e dê refresh
   contractToEdit?: Contract | null;
+  presetMunicipalityId?: number; // ✅ preset ao abrir “Novo Contrato”
+  presetDepartmentId?: number;   // ✅ preset ao abrir “Novo Contrato”
 };
 
 function parseBRNumber(raw: string): number | null {
@@ -34,7 +37,13 @@ function parseBRNumber(raw: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-export default function ContractFormModal({ onClose, contractToEdit }: Props) {
+export default function ContractFormModal({
+  onClose,
+  onSaved,
+  contractToEdit,
+  presetMunicipalityId,
+  presetDepartmentId,
+}: Props) {
   const router = useRouter();
   const isEdit = Boolean(contractToEdit);
 
@@ -44,26 +53,28 @@ export default function ContractFormModal({ onClose, contractToEdit }: Props) {
   const [form, setForm] = useState({
     code: "",
     description: "",
-    municipalityId: "",
-    departmentId: "",
+    municipalityId: presetMunicipalityId ? String(presetMunicipalityId) : "",
+    departmentId: presetDepartmentId ? String(presetDepartmentId) : "",
     startDate: "",
     endDate: "",
     monthlyValue: "", // aceita "50.000,00"
-    status: "ATIVO", // ATIVO | ENCERRADO | SUSPENSO
+    status: "ATIVO" as "ATIVO" | "ENCERRADO" | "SUSPENSO",
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
+  // Carregar municípios
   useEffect(() => {
     const load = async () => {
       const res = await fetch(`${API_BASE}/municipalities?limit=9999`);
-      const json = await res.json().catch(() => ({ data: [] }));
+      const json = await res.json().catch(() => ({ data: [] as Municipality[] }));
       setMunicipalities(json.data || []);
     };
     load();
   }, []);
 
+  // Preencher form em edição OU com presets
   useEffect(() => {
     if (isEdit && contractToEdit) {
       setForm({
@@ -77,11 +88,20 @@ export default function ContractFormModal({ onClose, contractToEdit }: Props) {
           contractToEdit.monthlyValue != null
             ? String(contractToEdit.monthlyValue).replace(".", ",")
             : "",
-        status: contractToEdit.status || "ATIVO",
+        status: (contractToEdit.status as "ATIVO" | "ENCERRADO" | "SUSPENSO") || "ATIVO",
       });
+    } else if (!isEdit) {
+      // aplica presets apenas em criação
+      setForm((prev) => ({
+        ...prev,
+        municipalityId: presetMunicipalityId ? String(presetMunicipalityId) : prev.municipalityId,
+        departmentId: presetDepartmentId ? String(presetDepartmentId) : prev.departmentId,
+      }));
     }
-  }, [isEdit, contractToEdit]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEdit, contractToEdit?.id, presetMunicipalityId, presetDepartmentId]);
 
+  // Carregar órgãos ao trocar município
   useEffect(() => {
     const loadDeps = async () => {
       if (!form.municipalityId) {
@@ -89,7 +109,7 @@ export default function ContractFormModal({ onClose, contractToEdit }: Props) {
         return;
       }
       const res = await fetch(`${API_BASE}/departments?municipalityId=${form.municipalityId}&limit=9999`);
-      const json = await res.json().catch(() => ({ data: [] }));
+      const json = await res.json().catch(() => ({ data: [] as Department[] }));
       setDepartments(json.data || []);
     };
     loadDeps();
@@ -159,8 +179,12 @@ export default function ContractFormModal({ onClose, contractToEdit }: Props) {
         );
       }
 
-      router.refresh();
-      onClose();
+      // sucesso
+      if (onSaved) onSaved();
+      else {
+        router.refresh();
+        onClose();
+      }
     } catch (e: any) {
       setErr(e?.message ?? "Erro inesperado ao salvar contrato.");
     } finally {
@@ -303,7 +327,7 @@ export default function ContractFormModal({ onClose, contractToEdit }: Props) {
             />
           </div>
 
-          {err && <div className="md:col-span-2 text-sm text-red-600">{err}</div>}
+          {err && <div className="md:col-span-2 text-sm text-red-600 whitespace-pre-line">{err}</div>}
 
           <div className="md:col-span-2 flex justify-end gap-3 pt-2">
             <button
