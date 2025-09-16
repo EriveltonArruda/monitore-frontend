@@ -5,23 +5,7 @@ export const revalidate = 0;
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:3001";
 
-type SearchParams = {
-  page?: string;
-  limit?: string;
-  municipalityId?: string;
-  departmentId?: string;
-  contractId?: string;
-  status?: string;
-  search?: string;
-  issueFrom?: string;
-  issueTo?: string;
-  periodFrom?: string;
-  periodTo?: string;
-  receivedFrom?: string;
-  receivedTo?: string;
-  orderBy?: "issueDate" | "receivedAt" | "grossAmount";
-  order?: "asc" | "desc";
-};
+type SearchParams = Record<string, string | string[] | undefined>;
 
 async function fetchReceivables(qs: URLSearchParams) {
   const res = await fetch(`${API_BASE}/receivables?${qs.toString()}`, {
@@ -51,15 +35,22 @@ async function fetchMunicipalities() {
 export default async function Page({
   searchParams,
 }: {
-  searchParams: SearchParams;
+  // ✅ Next 14+: searchParams é Promise em Server Components
+  searchParams: Promise<SearchParams>;
 }) {
+  const sp = await searchParams;
+
+  const getOne = (v: string | string[] | undefined, fallback = "") =>
+    Array.isArray(v) ? v[0] ?? fallback : v ?? fallback;
+
   // defaults
-  const page = Number(searchParams.page || 1);
-  const limit = Number(searchParams.limit || 20);
+  const page = Number(getOne(sp.page, "1"));
+  const limit = Number(getOne(sp.limit, "20"));
+
   const orderBy =
-    (searchParams.orderBy as "issueDate" | "receivedAt" | "grossAmount") ||
+    (getOne(sp.orderBy, "issueDate") as "issueDate" | "receivedAt" | "grossAmount") ||
     "issueDate";
-  const order = (searchParams.order as "asc" | "desc") || "desc";
+  const order = (getOne(sp.order, "desc") as "asc" | "desc") || "desc";
 
   // monta query
   const qs = new URLSearchParams();
@@ -68,17 +59,38 @@ export default async function Page({
   qs.set("orderBy", orderBy);
   qs.set("order", order);
 
-  if (searchParams.search) qs.set("search", searchParams.search);
-  if (searchParams.municipalityId) qs.set("municipalityId", searchParams.municipalityId);
-  if (searchParams.departmentId) qs.set("departmentId", searchParams.departmentId);
-  if (searchParams.contractId) qs.set("contractId", searchParams.contractId);
-  if (searchParams.status) qs.set("status", searchParams.status);
-  if (searchParams.issueFrom) qs.set("issueFrom", searchParams.issueFrom);
-  if (searchParams.issueTo) qs.set("issueTo", searchParams.issueTo);
-  if (searchParams.periodFrom) qs.set("periodFrom", searchParams.periodFrom);
-  if (searchParams.periodTo) qs.set("periodTo", searchParams.periodTo);
-  if (searchParams.receivedFrom) qs.set("receivedFrom", searchParams.receivedFrom);
-  if (searchParams.receivedTo) qs.set("receivedTo", searchParams.receivedTo);
+  const search = getOne(sp.search);
+  if (search) qs.set("search", search);
+
+  const municipalityId = getOne(sp.municipalityId);
+  if (municipalityId) qs.set("municipalityId", municipalityId);
+
+  const departmentId = getOne(sp.departmentId);
+  if (departmentId) qs.set("departmentId", departmentId);
+
+  const contractId = getOne(sp.contractId);
+  if (contractId) qs.set("contractId", contractId);
+
+  const status = getOne(sp.status);
+  if (status) qs.set("status", status);
+
+  const issueFrom = getOne(sp.issueFrom);
+  if (issueFrom) qs.set("issueFrom", issueFrom);
+
+  const issueTo = getOne(sp.issueTo);
+  if (issueTo) qs.set("issueTo", issueTo);
+
+  const periodFrom = getOne(sp.periodFrom);
+  if (periodFrom) qs.set("periodFrom", periodFrom);
+
+  const periodTo = getOne(sp.periodTo);
+  if (periodTo) qs.set("periodTo", periodTo);
+
+  const receivedFrom = getOne(sp.receivedFrom);
+  if (receivedFrom) qs.set("receivedFrom", receivedFrom);
+
+  const receivedTo = getOne(sp.receivedTo);
+  if (receivedTo) qs.set("receivedTo", receivedTo);
 
   const [municipalities, recv] = await Promise.all([
     fetchMunicipalities(),

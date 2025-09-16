@@ -5,15 +5,7 @@ export const revalidate = 0;
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:3001";
 
-type SearchParams = {
-  page?: string;
-  pageSize?: string; // backend usa pageSize
-  month?: string;
-  year?: string;
-  status?: string;
-  category?: string;
-  search?: string;
-};
+type SearchParams = Record<string, string | string[] | undefined>;
 
 async function getPaginatedTravelExpenses(qs: URLSearchParams) {
   const res = await fetch(`${API_BASE}/travel-expenses?${qs.toString()}`, {
@@ -30,16 +22,22 @@ async function getPaginatedTravelExpenses(qs: URLSearchParams) {
 export default async function TravelExpensesPage({
   searchParams,
 }: {
-  searchParams: SearchParams;
+  // ✅ Next 14+: searchParams é Promise em Server Components
+  searchParams: Promise<SearchParams>;
 }) {
+  const sp = await searchParams;
+
+  // helper p/ pegar 1 valor de string|string[]
+  const getOne = (v: string | string[] | undefined, fallback = "") =>
+    Array.isArray(v) ? v[0] ?? fallback : v ?? fallback;
+
   // defaults
-  const page = Number(searchParams.page || 1);
-  const pageSize = Number(searchParams.pageSize || 10);
+  const page = Number(getOne(sp.page, "1"));
+  const pageSize = Number(getOne(sp.pageSize, "10"));
 
   // completa ano se vier só mês
-  const month = searchParams.month || "";
-  const year =
-    searchParams.year || (month ? String(new Date().getFullYear()) : "");
+  const month = getOne(sp.month, "");
+  const year = getOne(sp.year, month ? String(new Date().getFullYear()) : "");
 
   // monta query
   const qs = new URLSearchParams();
@@ -47,11 +45,15 @@ export default async function TravelExpensesPage({
   qs.set("pageSize", String(pageSize));
   if (month) qs.set("month", month);
   if (year) qs.set("year", year);
-  if (searchParams.status) qs.set("status", searchParams.status);
-  if (searchParams.category) qs.set("category", searchParams.category);
-  if (searchParams.search && searchParams.search.trim() !== "") {
-    qs.set("search", searchParams.search);
-  }
+
+  const status = getOne(sp.status);
+  if (status) qs.set("status", status);
+
+  const category = getOne(sp.category);
+  if (category) qs.set("category", category);
+
+  const search = getOne(sp.search);
+  if (search && search.trim() !== "") qs.set("search", search);
 
   const initial = await getPaginatedTravelExpenses(qs);
   return <TravelExpensesPageClient initialData={initial} />;
