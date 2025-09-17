@@ -1,14 +1,11 @@
-// src/components/AccountsPayableClient.tsx
 "use client";
 
 /**
- * Client Component (Contas a Pagar)
- * - Lista/paginação/ações (criar, editar, excluir, histórico)
- * - Filtros (busca, mês, ano, status, categoria)
- * - Exportar PDF (lista e individual)
- * - Cards-resumo (Vencido / Aberto / Pago) alinhados com os mesmos filtros da tabela
- * - (NOVO) Revalidação dos cards após salvar/editar/excluir usando summaryVersion
- * - (NOVO) Badges de alerta padronizados + tooltip + legenda
+ * Contas a Pagar
+ * - Lista / filtros / export
+ * - (NOVO) Cards-resumo (Vencido / ≤7 / ≤3 / Aberto / Pago) alimentados por /accounts-payable/summary
+ * - Badges de alerta por item (VENCIDO / D-7 / D-3)
+ * - Revalidação dos cards após salvar/editar/excluir
  */
 import React, { useState, useMemo, useEffect } from 'react';
 import {
@@ -48,7 +45,7 @@ type AccountsPayableClientProps = {
 const ITEMS_PER_PAGE = 10;
 const API_BASE = 'http://localhost:3001';
 
-// ---- Download helper (PDF) ----
+// --------- helpers ----------
 async function download(url: string, filename: string) {
   const res = await fetch(url);
   if (!res.ok) {
@@ -64,16 +61,12 @@ async function download(url: string, filename: string) {
   a.remove();
   URL.revokeObjectURL(a.href);
 }
-
-// ---- Nome de arquivo com timestamp ----
 function tsFilename(prefix: string, ext: 'pdf') {
   const now = new Date();
   const pad = (n: number) => String(n).padStart(2, '0');
   const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}`;
   return `${prefix}_${stamp}.${ext}`;
 }
-
-// ---- from/to (YYYY-MM-DD) a partir de month/year ----
 function buildPeriodFromFilters(month: string, year: string) {
   if (!month || !year) return null;
   const m = Number(month) - 1;
@@ -83,8 +76,10 @@ function buildPeriodFromFilters(month: string, year: string) {
   const fmt = (d: Date) => d.toISOString().slice(0, 10);
   return { from: fmt(first), to: fmt(last) };
 }
+function brl(n: number) {
+  return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
 
-// ---- estilização de status ----
 function getStatusClass(status: string) {
   switch (status) {
     case 'PAGO': return 'bg-green-100 text-green-700';
@@ -95,14 +90,12 @@ function getStatusClass(status: string) {
 const formatStatusText = (status: string) =>
   status.toLowerCase().replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 
-// ---- estilização de alerta (NOVO) ----
+// ---- estilos de alerta (por item) ----
 const alertStyles: Record<NonNullable<AccountPayable['alertTag']>, string> = {
   VENCIDO: 'bg-red-600 text-white',
   'D-3': 'bg-orange-500 text-white',
   'D-7': 'bg-amber-500 text-white',
 };
-
-// tooltip contextual (NOVO)
 function alertTooltip(acc: AccountPayable) {
   if (!acc.alertTag) return '';
   const base =
@@ -122,6 +115,7 @@ function alertTooltip(acc: AccountPayable) {
   return [base, days].filter(Boolean).join(' • ');
 }
 
+// ==================== COMPONENTE ====================
 export function AccountsPayableClient({ initialAccounts, totalAccounts }: AccountsPayableClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -141,7 +135,7 @@ export function AccountsPayableClient({ initialAccounts, totalAccounts }: Accoun
   const month = searchParams.get('month') || '';
   const year = searchParams.get('year') || '';
 
-  // --- categorias dinâmicas a partir da listagem atual ---
+  // --- categorias dinâmicas ---
   const categoryOptions = useMemo(() => {
     const unique: string[] = [];
     for (const acc of initialAccounts) {
@@ -155,7 +149,7 @@ export function AccountsPayableClient({ initialAccounts, totalAccounts }: Accoun
   const totalPages = Math.ceil(totalAccounts / ITEMS_PER_PAGE);
   const currentPage = Number(searchParams.get('page')) || 1;
 
-  // --- handlers de filtros (mantêm navegação por querystring) ---
+  // --- handlers de filtros ---
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const params = new URLSearchParams(searchParams.toString());
     const value = e.target.value;
@@ -218,22 +212,19 @@ export function AccountsPayableClient({ initialAccounts, totalAccounts }: Accoun
   ];
 
   // ==================== CARDS-RESUMO ====================
-  // (NOVO) Gatilho para refetch do resumo quando salvar/editar/excluir
   const [summaryVersion, setSummaryVersion] = useState(0);
   const refreshSummary = () => setSummaryVersion(v => v + 1);
-
-  // Chave estável para o useEffect (evita mudar tamanho/ordem de deps no Fast Refresh)
-  const summaryKey = `${month || ''}|${year || ''}|${status || ''}|${category || ''}`;
+  const summaryKey = `${month || ''}|${year || ''}|${status || ''}|${category || ''}|${search || ''}`;
 
   const [summary, setSummary] = useState<null | {
-    period: { from: string; to: string } | null;
-    totals: { count: number; amount: number };
-    buckets: {
-      VENCIDO: { count: number; amount: number };
-      ABERTO: { count: number; amount: number };
-      PAGO: { count: number; amount: number };
-    };
+    overdue: { count: number; amount: number };
+    due7: { count: number; amount: number };
+    due3: { count: number; amount: number };
+    open: { count: number; amount: number };
+    paid: { count: number; amount: number };
   }>(null);
+
+  const [summaryLoading, setSummaryLoading] = useState(false);
 
   useEffect(() => {
     const qs = new URLSearchParams();
@@ -241,13 +232,16 @@ export function AccountsPayableClient({ initialAccounts, totalAccounts }: Accoun
     if (period) { qs.set('from', period.from); qs.set('to', period.to); }
     if (status && status !== 'TODOS') qs.set('status', status);
     if (category && category !== 'TODAS') qs.set('category', category);
+    if (search && search.trim() !== '') qs.set('search', search.trim());
 
-    fetch(`${API_BASE}/accounts-payable/reports/status?${qs.toString()}`)
+    setSummaryLoading(true);
+    fetch(`${API_BASE}/accounts-payable/summary?${qs.toString()}`)
       .then((r) => r.json())
       .then((json) => setSummary(json))
-      .catch(() => setSummary(null));
+      .catch(() => setSummary(null))
+      .finally(() => setSummaryLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [summaryKey, summaryVersion]); // << adicionamos summaryVersion
+  }, [summaryKey, summaryVersion]);
 
   // ==================== EXPORTAÇÃO (PDF) ====================
   const handleExportListPdf = async () => {
@@ -271,7 +265,6 @@ export function AccountsPayableClient({ initialAccounts, totalAccounts }: Accoun
       {/* Modais */}
       {isFormModalOpen && (
         <AccountFormModal
-          // (NOVO) ao fechar o modal (após salvar ou cancelar), forçamos revalidação dos cards:
           onClose={() => { setIsFormModalOpen(false); refreshSummary(); }}
           accountToEdit={editingAccount}
         />
@@ -287,7 +280,7 @@ export function AccountsPayableClient({ initialAccounts, totalAccounts }: Accoun
               router.refresh();
               setIsDeleteModalOpen(false);
               setDeletingAccount(null);
-              refreshSummary(); // (NOVO) atualiza cards após deletar
+              refreshSummary();
             } catch {
               alert('Erro ao deletar a conta.');
             } finally {
@@ -304,7 +297,7 @@ export function AccountsPayableClient({ initialAccounts, totalAccounts }: Accoun
 
       <div className="max-w-7xl mx-auto">
         {/* Cabeçalho + ações */}
-        <div className="flex justify-between items-center mb-8">
+        <div className="flex justify-between items-center mb-6">
           <div>
             <h1 className="text-3xl font-bold text-gray-800">Contas a Pagar</h1>
             <p className="text-sm text-gray-500">Gerencie suas despesas e contas a pagar</p>
@@ -328,8 +321,34 @@ export function AccountsPayableClient({ initialAccounts, totalAccounts }: Accoun
           </div>
         </div>
 
+        {/* (NOVO) Cards de Status */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
+          {[
+            { key: 'overdue', title: 'Vencido', className: 'bg-red-50 border-red-200', pill: 'bg-red-600 text-white' },
+            { key: 'due3', title: '≤ 3 dias', className: 'bg-orange-50 border-orange-200', pill: 'bg-orange-500 text-white' },
+            { key: 'due7', title: '≤ 7 dias', className: 'bg-amber-50 border-amber-200', pill: 'bg-amber-500 text-white' },
+            { key: 'open', title: 'Aberto', className: 'bg-blue-50 border-blue-200', pill: 'bg-blue-600 text-white' },
+            { key: 'paid', title: 'Pago', className: 'bg-green-50 border-green-200', pill: 'bg-green-600 text-white' },
+          ].map((c) => {
+            const val = (summary as any)?.[c.key] as { count: number; amount: number } | undefined;
+            return (
+              <div key={c.key} className={`rounded-xl border p-3 ${c.className}`}>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-gray-700">{c.title}</span>
+                  <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${c.pill}`}>
+                    {val ? `${val.count} ${val.count === 1 ? 'conta' : 'contas'}` : '—'}
+                  </span>
+                </div>
+                <div className="mt-2 text-xl font-bold text-gray-900">
+                  {summaryLoading ? '...' : (val ? brl(val.amount) : '—')}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
         {/* Filtros */}
-        <div className="flex gap-4 mb-3">
+        <div className="flex flex-wrap gap-3 mb-3">
           <input
             type="text"
             placeholder="Buscar por nome..."
@@ -356,7 +375,7 @@ export function AccountsPayableClient({ initialAccounts, totalAccounts }: Accoun
           </select>
         </div>
 
-        {/* Legenda dos alertas (NOVO) */}
+        {/* Legenda dos alertas por item */}
         <div className="mb-6 flex flex-wrap items-center gap-2 text-xs text-gray-600">
           <span className="inline-flex items-center gap-1">
             <span className="inline-block h-2.5 w-2.5 rounded-full bg-amber-500" /> D-7
@@ -422,7 +441,7 @@ export function AccountsPayableClient({ initialAccounts, totalAccounts }: Accoun
                     <td className="p-4 text-gray-600">{account.category}</td>
 
                     <td className="p-4 text-gray-600">
-                      {account.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                      {brl(account.value)}
                     </td>
 
                     <td className="p-4">
