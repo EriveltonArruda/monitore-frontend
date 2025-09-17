@@ -4,7 +4,10 @@ import React, { useState, useEffect } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { PlusCircle, ArrowUpRight, ArrowDownLeft, Wrench, Trash2, Filter, Search } from "lucide-react";
+import {
+  PlusCircle, ArrowUpRight, ArrowDownLeft, Wrench,
+  Trash2, Filter, Search, Eye, X
+} from "lucide-react";
 import { MovementFormModal } from "./MovementFormModal";
 import { Pagination } from "../Pagination";
 import { DeleteConfirmationModal } from "../DeleteConfirmationModal";
@@ -64,8 +67,7 @@ export function MovementsPageClient({
     if (selectedProduct) params.set("productId", selectedProduct); else params.delete("productId");
     if (selectedPeriod) params.set("period", selectedPeriod); else params.delete("period");
     if (searchTerm) params.set("search", searchTerm); else params.delete("search");
-    params.set("page", "1"); // Volta pra página 1 ao filtrar
-    // Debounce pra não buscar a cada tecla
+    params.set("page", "1");
     const timer = setTimeout(() => {
       router.push(`${pathname}?${params.toString()}`);
     }, 350);
@@ -78,8 +80,28 @@ export function MovementsPageClient({
   const [deletingMovement, setDeletingMovement] = useState<Movement | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Modal de movimentação
+  // Modal de movimentação (criação)
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // ---------- NOVO: Modal de detalhes ----------
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const [detailsLoading, setDetailsLoading] = useState(false);
+  const [details, setDetails] = useState<Movement | null>(null);
+
+  const openDetails = async (id: number) => {
+    setDetailsLoading(true);
+    try {
+      const res = await fetch(`http://localhost:3001/stock-movements/${id}`, { cache: 'no-store' });
+      if (!res.ok) throw new Error('Falha ao carregar detalhes');
+      const data = await res.json();
+      setDetails(data);
+      setIsDetailsOpen(true);
+    } catch (e: any) {
+      alert(e.message || 'Erro ao abrir detalhes');
+    } finally {
+      setDetailsLoading(false);
+    }
+  };
 
   const handleDeleteConfirm = async () => {
     if (!deletingMovement) return;
@@ -120,7 +142,22 @@ export function MovementsPageClient({
         />
       )}
 
-      {isModalOpen && <MovementFormModal onClose={() => setIsModalOpen(false)} products={products} suppliers={suppliers} />}
+      {/* MODAL NOVA MOVIMENTAÇÃO */}
+      {isModalOpen && (
+        <MovementFormModal
+          onClose={() => setIsModalOpen(false)}
+          products={products}
+          suppliers={suppliers}
+        />
+      )}
+
+      {/* MODAL DETALHES (NOVO) */}
+      {isDetailsOpen && details && (
+        <StockMovementDetailsModal
+          movement={details}
+          onClose={() => setIsDetailsOpen(false)}
+        />
+      )}
 
       {/* Cabeçalho */}
       <div className="flex justify-between items-center mb-8">
@@ -128,10 +165,15 @@ export function MovementsPageClient({
           <h1 className="text-3xl font-bold text-gray-800">Movimentações</h1>
           <p className="text-sm text-gray-500">Registre entradas, saídas e ajustes de estoque</p>
         </div>
-        <button onClick={() => setIsModalOpen(true)} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2">
-          <PlusCircle size={20} />
-          <span>Nova Movimentação</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setIsModalOpen(true)}
+            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2"
+          >
+            <PlusCircle size={20} />
+            <span>Nova Movimentação</span>
+          </button>
+        </div>
       </div>
 
       {/* Filtros */}
@@ -212,13 +254,25 @@ export function MovementsPageClient({
                   {format(new Date(mov.createdAt), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
                 </div>
                 <div className="col-span-3 text-right flex items-center justify-end gap-2">
-                  <div>
+                  <div className="text-right">
                     <p className="font-bold text-lg text-gray-800">{formatCurrency(totalValue)}</p>
                     <p className="text-sm text-gray-500">{formatCurrency(mov.unitPriceAtMovement)}/un</p>
                   </div>
+
+                  {/* NOVO: Ver detalhes */}
+                  <button
+                    title="Ver detalhes"
+                    className="ml-2 text-gray-600 hover:text-blue-600 transition-colors"
+                    onClick={() => openDetails(mov.id)}
+                    disabled={detailsLoading}
+                  >
+                    <Eye size={18} />
+                  </button>
+
+                  {/* Excluir */}
                   <button
                     title="Excluir movimentação"
-                    className="ml-4 text-gray-400 hover:text-red-600 transition-colors"
+                    className="ml-2 text-gray-400 hover:text-red-600 transition-colors"
                     onClick={() => { setDeletingMovement(mov); setIsDeleteModalOpen(true); }}
                     disabled={isDeleting}
                   >
@@ -277,3 +331,64 @@ const MovementTypeTag = ({ type }: { type: string }) => {
     </span>
   );
 };
+
+// ---------- NOVO: Modal de Detalhes ----------
+function StockMovementDetailsModal({
+  movement,
+  onClose,
+}: {
+  movement: Movement;
+  onClose: () => void;
+}) {
+  const money = (n: number | null) =>
+    (n ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
+  const total = (movement.unitPriceAtMovement || 0) * movement.quantity;
+
+  const typeLabel =
+    movement.type === "ENTRADA" ? "Entrada" :
+      movement.type === "SAIDA" ? "Saída" :
+        movement.type === "AJUSTE" ? "Ajuste" : movement.type;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 grid place-items-center z-50 p-4">
+      <div className="bg-white rounded-2xl p-6 w-full max-w-2xl shadow-xl">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-xl font-semibold text-gray-800">
+            Detalhes da Movimentação • {typeLabel}
+          </h3>
+          <button className="text-gray-400 hover:text-gray-600" onClick={onClose} title="Fechar">
+            <X size={22} />
+          </button>
+        </div>
+
+        <div className="grid sm:grid-cols-2 gap-3 text-sm">
+          <div><span className="font-semibold text-gray-700">Produto:</span> {movement.product?.name}</div>
+          <div><span className="font-semibold text-gray-700">Data:</span> {format(new Date(movement.createdAt), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</div>
+
+          <div><span className="font-semibold text-gray-700">Quantidade:</span> {movement.quantity}</div>
+          <div><span className="font-semibold text-gray-700">Preço unit.:</span> {money(movement.unitPriceAtMovement)}</div>
+
+          <div><span className="font-semibold text-gray-700">Total:</span> {money(total)}</div>
+          <div><span className="font-semibold text-gray-700">Documento:</span> {movement.document || "—"}</div>
+
+          <div className="sm:col-span-2"><span className="font-semibold text-gray-700">{movement.type === "ENTRADA" ? "Fornecedor" : "Cliente"}:</span> {movement.relatedParty || "—"}</div>
+
+          <div className="sm:col-span-2"><span className="font-semibold text-gray-700">Detalhes/Motivo:</span> {movement.details || "—"}</div>
+
+          {movement.notes && (
+            <div className="sm:col-span-2">
+              <span className="font-semibold text-gray-700">Observações:</span> {movement.notes}
+            </div>
+          )}
+        </div>
+
+        <div className="mt-6 text-right">
+          <button className="px-4 py-2 rounded-lg border text-gray-700 hover:bg-gray-50" onClick={onClose}>
+            Fechar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
