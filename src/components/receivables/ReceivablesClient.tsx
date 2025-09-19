@@ -1,3 +1,4 @@
+// src/app/dashboard/components/receivables/ReceivablesClient.tsx
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
@@ -22,6 +23,7 @@ import { ptBR } from "date-fns/locale";
 import { Pagination } from "@/components/Pagination";
 import { DeleteConfirmationModal } from "@/components/DeleteConfirmationModal";
 import ReceivablesFormModal from "./ReceivablesFormModal";
+import Topbar from '../../components/layout/Topbar';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:3001";
 
@@ -44,9 +46,9 @@ async function download(url: string, filename: string) {
 function tsFilename(prefix: string, ext: "pdf" | "csv") {
   const now = new Date();
   const pad = (n: number) => String(n).padStart(2, "0");
-  const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(
-    now.getHours()
-  )}${pad(now.getMinutes())}`;
+  const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(
+    now.getDate()
+  )}_${pad(now.getHours())}${pad(now.getMinutes())}`;
   return `${prefix}_${stamp}.${ext}`;
 }
 
@@ -382,7 +384,8 @@ export default function ReceivablesClient(props: Props) {
       {/* Modal Delete */}
       {isDeleteOpen && deleting && (
         <DeleteConfirmationModal
-          itemName={`${deleting.noteNumber ?? "Sem NF"} – ${deleting.contract?.code ?? ""}`}
+          itemName={`${deleting.noteNumber ?? "Sem NF"} – ${deleting.contract?.code ?? ""
+            }`}
           onConfirm={async () => {
             try {
               await fetch(`${API_BASE}/receivables/${deleting.id}`, {
@@ -404,43 +407,42 @@ export default function ReceivablesClient(props: Props) {
       )}
 
       <div className="max-w-7xl mx-auto">
-        {/* Cabeçalho */}
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-800">Recebidos</h1>
-            <p className="text-sm text-gray-500">
-              Notas / parcelas recebíveis por contrato
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={exportCSV}
-              className="border border-gray-300 hover:bg-gray-50 text-gray-700 font-medium py-2 px-3 rounded-lg flex items-center gap-2"
-              title="Exportar CSV (linhas atuais)"
-            >
-              <Download size={18} />
-              <span>Exportar CSV</span>
-            </button>
-            <button
-              onClick={exportListPdf}
-              className="border border-gray-300 hover:bg-gray-50 text-gray-700 font-medium py-2 px-3 rounded-lg flex items-center gap-2"
-              title="Exportar PDF (com filtros atuais)"
-            >
-              <FileDown size={18} />
-              <span>Exportar PDF</span>
-            </button>
-            <button
-              onClick={() => {
-                setEditing(undefined);
-                setIsFormOpen(true);
-              }}
-              className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2"
-            >
-              <PlusCircle size={20} />
-              <span>Novo Recebido</span>
-            </button>
-          </div>
-        </div>
+        {/* Topbar sem campo de busca, apenas ações */}
+        <Topbar
+          title="Recebidos"
+          subtitle="Notas / parcelas recebíveis por contrato"
+          withSearch={false}
+          actions={
+            <>
+              <button
+                onClick={exportCSV}
+                className="border border-gray-300 hover:bg-gray-50 text-gray-700 font-medium py-2 px-3 rounded-lg flex items-center gap-2"
+                title="Exportar CSV (linhas atuais)"
+              >
+                <Download size={18} />
+                <span>Exportar CSV</span>
+              </button>
+              <button
+                onClick={exportListPdf}
+                className="border border-gray-300 hover:bg-gray-50 text-gray-700 font-medium py-2 px-3 rounded-lg flex items-center gap-2"
+                title="Exportar PDF (com filtros atuais)"
+              >
+                <FileDown size={18} />
+                <span>Exportar PDF</span>
+              </button>
+              <button
+                onClick={() => {
+                  setEditing(undefined);
+                  setIsFormOpen(true);
+                }}
+                className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2"
+              >
+                <PlusCircle size={20} />
+                <span>Novo Recebido</span>
+              </button>
+            </>
+          }
+        />
 
         {/* KPIs */}
         <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-4">
@@ -463,16 +465,176 @@ export default function ReceivablesClient(props: Props) {
           <div className="bg-white rounded-xl p-3 shadow-sm lg:col-span-1 sm:col-span-2">
             <p className="text-xs text-gray-500">Σ Líquido</p>
             <p className="text-lg font-semibold">
-              {kpis.liquido.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+              {kpis.liquido.toLocaleString("pt-BR", {
+                style: "currency",
+                currency: "BRL",
+              })}
             </p>
           </div>
         </div>
 
         {/* Filtros */}
-        {/* ... (sem mudanças) ... */}
+        <div className="bg-white p-4 rounded-xl shadow-sm mb-3">
+          <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
+            <div className="col-span-2">
+              <label className="block text-xs text-gray-500 mb-1">
+                Buscar (NF / período / código / município / órgão)
+              </label>
+              <input
+                type="text"
+                value={qSearch}
+                onChange={handleSearch}
+                className="w-full border rounded-md px-3 py-2"
+                placeholder="Ex.: NF-001, MAR/2025, CT 001/2025, Recife, Educação…"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Município</label>
+              <select
+                value={qMunicipalityId}
+                onChange={handleMunicipality}
+                className="w-full border rounded-md px-3 py-2 bg-white"
+                title="Município"
+              >
+                <option value="">Todos</option>
+                {municipalities.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">
+                Órgão/Secretaria
+              </label>
+              <select
+                value={qDepartmentId}
+                onChange={handleDepartment}
+                className="w-full border rounded-md px-3 py-2 bg-white"
+                title="Órgão/Secretaria"
+                disabled={!qMunicipalityId}
+              >
+                <option value="">Todos</option>
+                {departments.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Contrato</label>
+              <select
+                value={qContractId}
+                onChange={handleContract}
+                className="w-full border rounded-md px-3 py-2 bg-white"
+                title="Contrato"
+                disabled={!qDepartmentId && !qMunicipalityId}
+              >
+                <option value="">Todos</option>
+                {contracts.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.code}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Status</label>
+              <select
+                value={qStatus}
+                onChange={handleStatus}
+                className="w-full border rounded-md px-3 py-2 bg-white"
+                title="Status"
+              >
+                <option value="">Todos</option>
+                <option value="A_RECEBER">A Receber</option>
+                <option value="ATRASADO">Atrasado</option>
+                <option value="RECEBIDO">Recebido</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-6 gap-3 mt-3">
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">
+                Emissão de
+              </label>
+              <input
+                type="date"
+                value={qIssueFrom}
+                onChange={handleIssueFrom}
+                className="w-full border rounded-md px-3 py-2"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">
+                Emissão até
+              </label>
+              <input
+                type="date"
+                value={qIssueTo}
+                onChange={handleIssueTo}
+                className="w-full border rounded-md px-3 py-2"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">
+                Ordenar por
+              </label>
+              <select
+                value={qOrderBy}
+                onChange={handleOrderBy}
+                className="w-full border rounded-md px-3 py-2 bg-white"
+                title="Ordenar por"
+              >
+                <option value="issueDate">Emissão</option>
+                <option value="receivedAt">Recebimento</option>
+                <option value="grossAmount">Valor Bruto</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Ordem</label>
+              <select
+                value={qOrder}
+                onChange={handleOrder}
+                className="w-full border rounded-md px-3 py-2 bg-white"
+                title="Ordem"
+              >
+                <option value="asc">Ascendente</option>
+                <option value="desc">Descendente</option>
+              </select>
+              <div className="mt-1 text-gray-400">{qOrder === "asc" ? <SortAsc size={14} /> : <SortDesc size={14} />}</div>
+            </div>
+          </div>
+        </div>
 
         {/* Legenda de status */}
-        {/* ... (sem mudanças) ... */}
+        <div className="mb-4 flex flex-wrap items-center gap-2 text-xs text-gray-600">
+          <span className="inline-flex items-center gap-1">
+            <span className="inline-block h-2.5 w-2.5 rounded-full bg-amber-400" /> A
+            Receber
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <span className="inline-block h-2.5 w-2.5 rounded-full bg-red-500" />{" "}
+            Atrasado
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <span className="inline-block h-2.5 w-2.5 rounded-full bg-emerald-500" />{" "}
+            Recebido
+          </span>
+          <span className="inline-flex items-center gap-1 text-gray-400 ml-2">
+            <FileSearch size={14} />
+            Passe o mouse no selo para detalhes
+          </span>
+        </div>
 
         {/* Tabela */}
         <div className="bg-white p-4 rounded-xl shadow-sm">
@@ -519,8 +681,13 @@ export default function ReceivablesClient(props: Props) {
                 const isBusy = processing.has(r.id);
 
                 return (
-                  <tr key={r.id} className="border-b hover:bg-gray-50 last:border-b-0">
-                    <td className="p-3 text-gray-700">{r.contract?.code ?? "—"}</td>
+                  <tr
+                    key={r.id}
+                    className="border-b hover:bg-gray-50 last:border-b-0"
+                  >
+                    <td className="p-3 text-gray-700">
+                      {r.contract?.code ?? "—"}
+                    </td>
                     <td className="p-3 text-gray-700">{r.noteNumber ?? "—"}</td>
                     <td className="p-3 text-gray-700">
                       <div className="flex items-center gap-1">
@@ -547,7 +714,10 @@ export default function ReceivablesClient(props: Props) {
                           className="text-gray-400 hover:text-indigo-600"
                           title="Baixar PDF"
                           onClick={() =>
-                            download(`${API_BASE}/receivables/${r.id}/export-pdf`, tsFilename(`recebivel_${r.id}`, "pdf"))
+                            download(
+                              `${API_BASE}/receivables/${r.id}/export-pdf`,
+                              tsFilename(`recebivel_${r.id}`, "pdf")
+                            )
                           }
                         >
                           <Printer size={18} />
@@ -558,8 +728,8 @@ export default function ReceivablesClient(props: Props) {
                             onClick={() => markAsReceived(r)}
                             disabled={isBusy}
                             className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-sm transition-colors ${isBusy
-                                ? "opacity-60 cursor-not-allowed"
-                                : "hover:bg-emerald-50 border-emerald-600 text-emerald-700"
+                              ? "opacity-60 cursor-not-allowed"
+                              : "hover:bg-emerald-50 border-emerald-600 text-emerald-700"
                               }`}
                             title="Marcar como recebido"
                           >

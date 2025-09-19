@@ -4,7 +4,7 @@
 /**
  * Client Component (Contas a Pagar)
  * - Lista/paginação/ações (criar, editar, excluir, histórico)
- * - Filtros (busca, mês, ano, status, categoria)
+ * - Filtros (mês, ano, status, categoria) + busca via Topbar
  * - Exportar PDF (lista e individual)
  * - Cards-resumo (Vencido / ≤7 / ≤3 / Aberto / Pago) alinhados com os mesmos filtros da tabela
  * - Revalidação dos cards após salvar/editar/excluir usando summaryVersion
@@ -23,6 +23,8 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { PaymentHistoryModal } from '../payments/PaymentHistoryModal';
 import { APStatusCards } from './APStatusCards';
+// ✅ caminho corrigido do Topbar (arquivo fica em src/app/...)
+import Topbar from '../../components/layout/Topbar';
 
 type Payment = { id: number; paidAt: string; };
 
@@ -156,14 +158,7 @@ export function AccountsPayableClient({ initialAccounts, totalAccounts }: Accoun
   const totalPages = Math.ceil(totalAccounts / ITEMS_PER_PAGE);
   const currentPage = Number(searchParams.get('page')) || 1;
 
-  // --- handlers de filtros ---
-  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const params = new URLSearchParams(searchParams.toString());
-    const value = e.target.value;
-    if (value && value.trim() !== '') params.set('search', value); else params.delete('search');
-    params.set('page', '1');
-    router.push(`?${params.toString()}`);
-  };
+  // --- handlers de filtros (exceto busca, que está no Topbar) ---
   const handleMonthChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const params = new URLSearchParams(searchParams.toString());
     const selectedMonth = e.target.value;
@@ -250,6 +245,17 @@ export function AccountsPayableClient({ initialAccounts, totalAccounts }: Accoun
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [summaryKey, summaryVersion]);
 
+  // 🔔 Contadores para o sino de notificações (seguros contra undefined)
+  const notifCounts = useMemo(() => {
+    const b = summary?.buckets;
+    const safe = (n?: number) => (typeof n === 'number' && Number.isFinite(n) ? n : 0);
+    return {
+      apOverdue: safe(b?.VENCIDO?.count),
+      apDue3: safe(b?.DUE_3?.count),
+      apDue7: safe(b?.DUE_7?.count),
+    };
+  }, [summary]);
+
   // ==================== EXPORTAÇÃO (PDF) ====================
   const handleExportListPdf = async () => {
     const params = new URLSearchParams();
@@ -303,45 +309,39 @@ export function AccountsPayableClient({ initialAccounts, totalAccounts }: Accoun
       )}
 
       <div className="max-w-7xl mx-auto">
-        {/* Cabeçalho + ações */}
-        <div className="flex justify-between items-center mb-6">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-800">Contas a Pagar</h1>
-            <p className="text-sm text-gray-500">Gerencie suas despesas e contas a pagar</p>
-          </div>
-          <div className="flex gap-2">
-            <button
-              onClick={handleExportListPdf}
-              className="border text-gray-700 hover:bg-gray-50 font-medium py-2 px-3 rounded-lg flex items-center gap-2"
-              title="Exportar lista (PDF)"
-            >
-              <FileDown size={18} />
-              <span>Exportar PDF</span>
-            </button>
-            <button
-              onClick={() => { setEditingAccount(null); setIsFormModalOpen(true); }}
-              className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2"
-            >
-              <PlusCircle size={20} />
-              <span>Nova Conta</span>
-            </button>
-          </div>
-        </div>
+        {/* Topbar com busca + ações + notificações */}
+        <Topbar
+          title="Contas a Pagar"
+          subtitle="Gerencie suas despesas e contas a pagar"
+          withSearch
+          searchPlaceholder="Buscar por nome..."
+          notifications={notifCounts}
+          actions={
+            <>
+              <button
+                onClick={handleExportListPdf}
+                className="border text-gray-700 hover:bg-gray-50 font-medium py-2 px-3 rounded-lg flex items-center gap-2"
+                title="Exportar lista (PDF)"
+              >
+                <FileDown size={18} />
+                <span>Exportar PDF</span>
+              </button>
+              <button
+                onClick={() => { setEditingAccount(null); setIsFormModalOpen(true); }}
+                className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2"
+              >
+                <PlusCircle size={20} />
+                <span>Nova Conta</span>
+              </button>
+            </>
+          }
+        />
 
         {/* CARDS DE STATUS */}
         <APStatusCards summary={summary} />
 
-        {/* Filtros */}
+        {/* Filtros (sem campo de busca aqui) */}
         <div className="flex gap-4 mb-3">
-          <input
-            type="text"
-            placeholder="Buscar por nome..."
-            value={search}
-            onChange={handleSearchChange}
-            className="border rounded-lg px-3 py-2 w-56"
-            title="Buscar pelo nome da conta"
-          />
-
           <select title="Selecione o mês" value={month} onChange={handleMonthChange} className="border rounded-lg px-3 py-2">
             {monthOptions.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
           </select>

@@ -9,6 +9,8 @@ import { ptBR } from "date-fns/locale";
 import ContractFormModal from "./ContractsFormModal";
 import { DeleteConfirmationModal } from "@/components/DeleteConfirmationModal";
 import { Pagination } from "@/components/Pagination";
+// ✅ caminho corrigido do Topbar (mesmo nível de /components/)
+import Topbar from "../layout/Topbar";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:3001";
 
@@ -27,7 +29,7 @@ type Contract = {
   status: string;
   signedAt?: string | null;
   processNumber?: string | null;
-  municipality?: { id: number; name: string }; // torna opcional p/ evitar quebrazinhas
+  municipality?: { id: number; name: string };
   department?: { id: number; name: string; municipalityId: number } | null;
   daysToEnd: number | null;
   alertTag: "EXPIRADO" | "D-7" | "D-30" | "HOJE" | null;
@@ -122,13 +124,6 @@ export default function ContractsClient(props: Props) {
     router.push(`?${params.toString()}`);
   };
 
-  // Busca no Enter para evitar push a cada tecla
-  const handleSearchKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key !== "Enter") return;
-    const v = (e.target as HTMLInputElement).value.trim();
-    setParam("search", v || "");
-  };
-
   const handleMunicipality = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const value = e.target.value;
     const params = new URLSearchParams(searchParams.toString());
@@ -144,7 +139,8 @@ export default function ContractsClient(props: Props) {
   const handleEndFrom = (e: React.ChangeEvent<HTMLInputElement>) => setParam("endFrom", e.target.value);
   const handleEndTo = (e: React.ChangeEvent<HTMLInputElement>) => setParam("endTo", e.target.value);
   const handleDueIn = (e: React.ChangeEvent<HTMLInputElement>) => setParam("dueInDays", e.target.value);
-  const handleExpiredOnly = (e: React.ChangeEvent<HTMLInputElement>) => setParam("expiredOnly", e.target.checked ? "true" : "");
+  const handleExpiredOnly = (e: React.ChangeEvent<HTMLInputElement>) =>
+    setParam("expiredOnly", e.target.checked ? "true" : "");
   const handleOrder = (e: React.ChangeEvent<HTMLSelectElement>) => setParam("order", e.target.value);
 
   const clearFilters = () => {
@@ -155,6 +151,21 @@ export default function ContractsClient(props: Props) {
   };
 
   const contracts = useMemo(() => initialContracts, [initialContracts]);
+
+  // 🔔 Contadores para o sino (derivados da lista exibida)
+  const notifCounts = useMemo(() => {
+    let d30 = 0, d7 = 0, today = 0;
+    for (const c of contracts) {
+      if (c.alertTag === "D-30") d30++;
+      else if (c.alertTag === "D-7") d7++;
+      else if (c.alertTag === "HOJE") today++;
+    }
+    return {
+      contractsD30: d30,
+      contractsD7: d7,
+      contractsToday: today,
+    };
+  }, [contracts]);
 
   const onDelete = async () => {
     if (!deleting) return;
@@ -215,35 +226,27 @@ export default function ContractsClient(props: Props) {
       )}
 
       <div className="max-w-7xl mx-auto">
-        {/* Cabeçalho */}
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-800">Contratos</h1>
-            <p className="text-sm text-gray-500">Gerencie seus contratos por prefeitura e órgão</p>
-          </div>
-          <button
-            onClick={openCreate}
-            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2"
-          >
-            <PlusCircle size={20} />
-            <span>Novo Contrato</span>
-          </button>
-        </div>
+        {/* ========= TOPBAR ========= */}
+        <Topbar
+          title="Contratos"
+          subtitle="Gerencie seus contratos por prefeitura e órgão"
+          withSearch
+          searchPlaceholder="Buscar por código/descrição…"
+          notifications={notifCounts}
+          actions={
+            <button
+              onClick={openCreate}
+              className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2"
+            >
+              <PlusCircle size={20} />
+              <span>Novo Contrato</span>
+            </button>
+          }
+        />
 
-        {/* Filtros */}
+        {/* Filtros (sem campo de busca; Topbar cuida do ?search=) */}
         <div className="bg-white p-4 rounded-xl shadow-sm mb-3">
-          <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
-            <div className="col-span-2">
-              <label className="block text-xs text-gray-500 mb-1">Buscar (código/descr.)</label>
-              <input
-                type="text"
-                defaultValue={qSearch}
-                onKeyDown={handleSearchKey}
-                className="w-full border rounded-md px-3 py-2"
-                placeholder="Ex.: CT 001/2025"
-              />
-            </div>
-
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
             <div>
               <label className="block text-xs text-gray-500 mb-1">Município</label>
               <select
@@ -288,6 +291,7 @@ export default function ContractsClient(props: Props) {
                 className="w-full border rounded-md px-3 py-2"
               />
             </div>
+
             <div>
               <label className="block text-xs text-gray-500 mb-1">Vigência (Fim) até</label>
               <input
@@ -297,9 +301,22 @@ export default function ContractsClient(props: Props) {
                 className="w-full border rounded-md px-3 py-2"
               />
             </div>
+
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Ordenar por fim</label>
+              <select
+                title="Ordenar por fim"
+                value={qOrder}
+                onChange={handleOrder}
+                className="w-full border rounded-md px-3 py-2 bg-white"
+              >
+                <option value="asc">Mais antigos → recentes</option>
+                <option value="desc">Mais recentes → antigos</option>
+              </select>
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-6 gap-3 mt-3">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-3 mt-3">
             <div>
               <label className="block text-xs text-gray-500 mb-1">Vencendo em (dias)</label>
               <input
@@ -322,19 +339,6 @@ export default function ContractsClient(props: Props) {
               <label htmlFor="expiredOnly" className="text-sm text-gray-700">
                 Apenas expirados
               </label>
-            </div>
-
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">Ordenar por fim</label>
-              <select
-                title="Ordenar por fim"
-                value={qOrder}
-                onChange={handleOrder}
-                className="w-full border rounded-md px-3 py-2 bg-white"
-              >
-                <option value="asc">Mais antigos → recentes</option>
-                <option value="desc">Mais recentes → antigos</option>
-              </select>
             </div>
 
             <div className="flex items-end">
@@ -411,7 +415,9 @@ export default function ContractsClient(props: Props) {
                         >
                           <Clock size={12} />
                           {c.alertTag}
-                          {typeof c.daysToEnd === "number" && <span className="opacity-80 ml-1">({c.daysToEnd}d)</span>}
+                          {typeof c.daysToEnd === "number" && (
+                            <span className="opacity-80 ml-1">({c.daysToEnd}d)</span>
+                          )}
                         </span>
                       )}
                     </td>

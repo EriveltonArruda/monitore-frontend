@@ -1,110 +1,127 @@
+// src/components/accounts-payable/APStatusCards.tsx
 "use client";
 
-import { AlertTriangle, CheckCircle2, Clock, Hourglass, XOctagon } from "lucide-react";
 import React from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { AlertTriangle, CheckCircle2, BellRing, Timer, FolderOpen } from "lucide-react";
 
-type Bucket = { count: number; amount: number };
 type Summary = {
   period: { from: string; to: string } | null;
-  totals: Bucket;
+  totals: { count: number; amount: number };
   buckets: {
-    VENCIDO: Bucket;
-    ABERTO: Bucket;
-    PAGO: Bucket;
-    DUE_7?: Bucket;
-    DUE_3?: Bucket;
+    VENCIDO: { count: number; amount: number };
+    ABERTO: { count: number; amount: number };
+    PAGO: { count: number; amount: number };
+    DUE_7?: { count: number; amount: number };
+    DUE_3?: { count: number; amount: number };
   };
-  currency?: string;
 };
 
 type Props = {
   summary: Summary | null;
 };
 
-const moneyBRL = (n: number) =>
-  (Number(n) || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-
-const Card = ({
-  title,
-  value,
-  subtitle,
-  icon,
-  className,
-}: {
-  title: string;
-  value: string;
-  subtitle: string;
-  icon: React.ReactNode;
-  className: string;
-}) => (
-  <div
-    className={`flex flex-1 min-w-[200px] items-center gap-3 rounded-xl p-4 border shadow-sm ${className}`}
-  >
-    <div className="p-2 rounded-lg bg-white/60">{icon}</div>
-    <div className="flex flex-col">
-      <span className="text-sm text-white/90">{title}</span>
-      <span className="text-xl font-semibold text-white leading-6">{value}</span>
-      <span className="text-xs text-white/80">{subtitle}</span>
-    </div>
-  </div>
-);
-
-const Skeleton = () => (
-  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
-    {Array.from({ length: 5 }).map((_, i) => (
-      <div key={i} className="h-[84px] rounded-xl bg-gray-100 animate-pulse" />
-    ))}
-  </div>
-);
+const money = (n: number) =>
+  (n ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
 export function APStatusCards({ summary }: Props) {
-  if (!summary) return <Skeleton />;
+  const router = useRouter();
+  const searchParams = useSearchParams();
 
-  const { buckets } = summary;
-  const due7 = buckets.DUE_7 ?? { count: 0, amount: 0 };
-  const due3 = buckets.DUE_3 ?? { count: 0, amount: 0 };
+  const applyFilter = (patch: Record<string, string | null | undefined>) => {
+    const params = new URLSearchParams(searchParams.toString());
+    Object.entries(patch).forEach(([k, v]) => {
+      if (v === null || v === undefined || v === "") params.delete(k);
+      else params.set(k, v);
+    });
+    params.set("page", "1");
+    router.push(`?${params.toString()}`);
+  };
+
+  // Ações de clique:
+  // - Vencido => status=VENCIDO
+  // - Aberto  => status=A_PAGAR
+  // - Pago    => status=PAGO
+  // - D-7 / D-3 => garantimos mês/ano atuais e tiramos status (mostrar tudo do período)
+  const now = new Date();
+  const currMonth = String(now.getMonth() + 1);
+  const currYear = String(now.getFullYear());
+
+  const clickVencido = () => applyFilter({ status: "VENCIDO" });
+  const clickAberto = () => applyFilter({ status: "A_PAGAR" });
+  const clickPago = () => applyFilter({ status: "PAGO" });
+  const clickD7 = () =>
+    applyFilter({ month: currMonth, year: currYear, status: null });
+  const clickD3 = () =>
+    applyFilter({ month: currMonth, year: currYear, status: null });
+
+  const cards = [
+    {
+      key: "DUE_7",
+      title: "≤ 7 dias",
+      value: summary?.buckets.DUE_7?.count ?? 0,
+      amount: summary?.buckets.DUE_7?.amount ?? 0,
+      icon: Timer,
+      className: "bg-amber-50 border-amber-200",
+      onClick: clickD7,
+    },
+    {
+      key: "DUE_3",
+      title: "≤ 3 dias",
+      value: summary?.buckets.DUE_3?.count ?? 0,
+      amount: summary?.buckets.DUE_3?.amount ?? 0,
+      icon: BellRing,
+      className: "bg-orange-50 border-orange-200",
+      onClick: clickD3,
+    },
+    {
+      key: "VENCIDO",
+      title: "Vencido",
+      value: summary?.buckets.VENCIDO?.count ?? 0,
+      amount: summary?.buckets.VENCIDO?.amount ?? 0,
+      icon: AlertTriangle,
+      className: "bg-red-50 border-red-200",
+      onClick: clickVencido,
+    },
+    {
+      key: "ABERTO",
+      title: "Aberto",
+      value: summary?.buckets.ABERTO?.count ?? 0,
+      amount: summary?.buckets.ABERTO?.amount ?? 0,
+      icon: FolderOpen,
+      className: "bg-yellow-50 border-yellow-200",
+      onClick: clickAberto,
+    },
+    {
+      key: "PAGO",
+      title: "Pago",
+      value: summary?.buckets.PAGO?.count ?? 0,
+      amount: summary?.buckets.PAGO?.amount ?? 0,
+      icon: CheckCircle2,
+      className: "bg-emerald-50 border-emerald-200",
+      onClick: clickPago,
+    },
+  ];
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3 mb-6">
-      <Card
-        title="Vencido"
-        value={moneyBRL(buckets.VENCIDO.amount)}
-        subtitle={`${buckets.VENCIDO.count} conta(s)`}
-        icon={<XOctagon size={22} className="text-white" />}
-        className="bg-red-600 border-red-700"
-      />
-
-      <Card
-        title="≤ 7 dias"
-        value={moneyBRL(due7.amount)}
-        subtitle={`${due7.count} a vencer`}
-        icon={<Clock size={22} className="text-white" />}
-        className="bg-amber-500 border-amber-600"
-      />
-
-      <Card
-        title="≤ 3 dias"
-        value={moneyBRL(due3.amount)}
-        subtitle={`${due3.count} a vencer`}
-        icon={<Hourglass size={22} className="text-white" />}
-        className="bg-orange-500 border-orange-600"
-      />
-
-      <Card
-        title="Aberto"
-        value={moneyBRL(buckets.ABERTO.amount)}
-        subtitle={`${buckets.ABERTO.count} conta(s)`}
-        icon={<AlertTriangle size={22} className="text-white" />}
-        className="bg-blue-600 border-blue-700"
-      />
-
-      <Card
-        title="Pago"
-        value={moneyBRL(buckets.PAGO.amount)}
-        subtitle={`${buckets.PAGO.count} conta(s)`}
-        icon={<CheckCircle2 size={22} className="text-white" />}
-        className="bg-green-600 border-green-700"
-      />
+    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3 mb-4">
+      {cards.map(({ key, title, value, amount, icon: Icon, className, onClick }) => (
+        <button
+          key={key}
+          onClick={onClick}
+          className={`text-left rounded-xl border p-3 shadow-sm hover:shadow transition ${className}`}
+          title={`Filtrar por: ${title}`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-gray-600">{title}</span>
+            <Icon size={18} className="text-gray-500" />
+          </div>
+          <div className="mt-1 text-2xl font-semibold text-gray-800">{value}</div>
+          <div className="text-xs text-gray-500 mt-0.5">{money(Number(amount))}</div>
+        </button>
+      ))}
     </div>
   );
 }
+
+export default APStatusCards;
