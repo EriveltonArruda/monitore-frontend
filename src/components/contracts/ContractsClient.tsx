@@ -1,9 +1,18 @@
-// src/app/dashboard/components/contracts/ContractsClient.tsx
+// src/app/dashboard/components/contracts/ContractsClient.tsx 
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { PlusCircle, Pencil, Trash2, Calendar, Clock, Info } from "lucide-react";
+import {
+  PlusCircle,
+  Pencil,
+  Trash2,
+  Calendar,
+  Clock,
+  Info,
+  FileDown,
+  Printer,
+} from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import ContractFormModal from "./ContractsFormModal";
@@ -13,6 +22,31 @@ import { Pagination } from "@/components/Pagination";
 import Topbar from "../layout/Topbar";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:3001";
+
+// ---------- helpers download ----------
+async function download(url: string, filename: string) {
+  const res = await fetch(url);
+  if (!res.ok) {
+    const msg = await res.text().catch(() => "");
+    throw new Error(msg || "Falha ao baixar arquivo");
+  }
+  const blob = await res.blob();
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(a.href);
+}
+function tsFilename(prefix: string, ext: "pdf") {
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(
+    now.getDate()
+  )}_${pad(now.getHours())}${pad(now.getMinutes())}`;
+  return `${prefix}_${stamp}.${ext}`;
+}
 
 type Municipality = { id: number; name: string };
 type Department = { id: number; name: string; municipalityId: number };
@@ -78,7 +112,8 @@ function alertTooltip(c: Contract) {
 }
 
 export default function ContractsClient(props: Props) {
-  const { initialContracts, totalContracts, page, totalPages, municipalities } = props;
+  const { initialContracts, totalContracts, page, totalPages, municipalities } =
+    props;
 
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -109,7 +144,9 @@ export default function ContractsClient(props: Props) {
         setDepartments([]);
         return;
       }
-      const res = await fetch(`${API_BASE}/departments?municipalityId=${qMunicipalityId}&limit=9999`);
+      const res = await fetch(
+        `${API_BASE}/departments?municipalityId=${qMunicipalityId}&limit=9999`
+      );
       const json = await res.json().catch(() => ({ data: [] as Department[] }));
       setDepartments(json.data || []);
     };
@@ -135,13 +172,18 @@ export default function ContractsClient(props: Props) {
     router.push(`?${params.toString()}`);
   };
 
-  const handleDepartment = (e: React.ChangeEvent<HTMLSelectElement>) => setParam("departmentId", e.target.value);
-  const handleEndFrom = (e: React.ChangeEvent<HTMLInputElement>) => setParam("endFrom", e.target.value);
-  const handleEndTo = (e: React.ChangeEvent<HTMLInputElement>) => setParam("endTo", e.target.value);
-  const handleDueIn = (e: React.ChangeEvent<HTMLInputElement>) => setParam("dueInDays", e.target.value);
+  const handleDepartment = (e: React.ChangeEvent<HTMLSelectElement>) =>
+    setParam("departmentId", e.target.value);
+  const handleEndFrom = (e: React.ChangeEvent<HTMLInputElement>) =>
+    setParam("endFrom", e.target.value);
+  const handleEndTo = (e: React.ChangeEvent<HTMLInputElement>) =>
+    setParam("endTo", e.target.value);
+  const handleDueIn = (e: React.ChangeEvent<HTMLInputElement>) =>
+    setParam("dueInDays", e.target.value);
   const handleExpiredOnly = (e: React.ChangeEvent<HTMLInputElement>) =>
     setParam("expiredOnly", e.target.checked ? "true" : "");
-  const handleOrder = (e: React.ChangeEvent<HTMLSelectElement>) => setParam("order", e.target.value);
+  const handleOrder = (e: React.ChangeEvent<HTMLSelectElement>) =>
+    setParam("order", e.target.value);
 
   const clearFilters = () => {
     const keep: Array<[string, string]> = []; // se quiser manter algo, adicione aqui
@@ -154,7 +196,9 @@ export default function ContractsClient(props: Props) {
 
   // 🔔 Contadores para o sino (derivados da lista exibida)
   const notifCounts = useMemo(() => {
-    let d30 = 0, d7 = 0, today = 0;
+    let d30 = 0,
+      d7 = 0,
+      today = 0;
     for (const c of contracts) {
       if (c.alertTag === "D-30") d30++;
       else if (c.alertTag === "D-7") d7++;
@@ -171,7 +215,9 @@ export default function ContractsClient(props: Props) {
     if (!deleting) return;
     setIsDeleting(true);
     try {
-      const res = await fetch(`${API_BASE}/contracts/${deleting.id}`, { method: "DELETE" });
+      const res = await fetch(`${API_BASE}/contracts/${deleting.id}`, {
+        method: "DELETE",
+      });
       if (!res.ok) throw new Error("Falha ao excluir contrato.");
       setIsDeleteModalOpen(false);
       setDeleting(null);
@@ -192,8 +238,30 @@ export default function ContractsClient(props: Props) {
     setIsFormOpen(true);
   };
 
+  // 📄 Exportar PDF (lista com filtros da URL)
+  const exportListPdf = async () => {
+    const qs = new URLSearchParams();
+    if (qMunicipalityId) qs.set("municipalityId", qMunicipalityId);
+    if (qDepartmentId) qs.set("departmentId", qDepartmentId);
+    if (qSearch) qs.set("search", qSearch);
+    if (qEndFrom) qs.set("endFrom", qEndFrom);
+    if (qEndTo) qs.set("endTo", qEndTo);
+    if (qDueInDays) qs.set("dueInDays", qDueInDays);
+    if (qExpiredOnly) qs.set("expiredOnly", qExpiredOnly);
+    if (qOrder) qs.set("order", qOrder);
+
+    const url = `${API_BASE}/contracts/export-pdf?${qs.toString()}`;
+    try {
+      await download(url, tsFilename("contratos", "pdf"));
+    } catch (err) {
+      alert((err as Error).message);
+    }
+  };
+
   // presets para “Novo Contrato” com base nos filtros aplicados
-  const presetMunicipalityId = qMunicipalityId ? Number(qMunicipalityId) : undefined;
+  const presetMunicipalityId = qMunicipalityId
+    ? Number(qMunicipalityId)
+    : undefined;
   const presetDepartmentId = qDepartmentId ? Number(qDepartmentId) : undefined;
 
   return (
@@ -234,13 +302,23 @@ export default function ContractsClient(props: Props) {
           searchPlaceholder="Buscar por código/descrição…"
           notifications={notifCounts}
           actions={
-            <button
-              onClick={openCreate}
-              className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2"
-            >
-              <PlusCircle size={20} />
-              <span>Novo Contrato</span>
-            </button>
+            <>
+              <button
+                onClick={exportListPdf}
+                className="border text-gray-700 hover:bg-gray-50 font-medium py-2 px-3 rounded-lg flex items-center gap-2"
+                title="Exportar lista (PDF)"
+              >
+                <FileDown size={18} />
+                <span>Exportar PDF</span>
+              </button>
+              <button
+                onClick={openCreate}
+                className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2"
+              >
+                <PlusCircle size={20} />
+                <span>Novo Contrato</span>
+              </button>
+            </>
           }
         />
 
@@ -265,7 +343,9 @@ export default function ContractsClient(props: Props) {
             </div>
 
             <div>
-              <label className="block text-xs text-gray-500 mb-1">Órgão/Secretaria</label>
+              <label className="block text-xs text-gray-500 mb-1">
+                Órgão/Secretaria
+              </label>
               <select
                 title="Órgão/Secretaria"
                 value={qDepartmentId}
@@ -283,7 +363,9 @@ export default function ContractsClient(props: Props) {
             </div>
 
             <div>
-              <label className="block text-xs text-gray-500 mb-1">Vigência (Fim) de</label>
+              <label className="block text-xs text-gray-500 mb-1">
+                Vigência (Fim) de
+              </label>
               <input
                 type="date"
                 value={qEndFrom}
@@ -293,7 +375,9 @@ export default function ContractsClient(props: Props) {
             </div>
 
             <div>
-              <label className="block text-xs text-gray-500 mb-1">Vigência (Fim) até</label>
+              <label className="block text-xs text-gray-500 mb-1">
+                Vigência (Fim) até
+              </label>
               <input
                 type="date"
                 value={qEndTo}
@@ -303,7 +387,9 @@ export default function ContractsClient(props: Props) {
             </div>
 
             <div>
-              <label className="block text-xs text-gray-500 mb-1">Ordenar por fim</label>
+              <label className="block text-xs text-gray-500 mb-1">
+                Ordenar por fim
+              </label>
               <select
                 title="Ordenar por fim"
                 value={qOrder}
@@ -318,7 +404,9 @@ export default function ContractsClient(props: Props) {
 
           <div className="grid grid-cols-1 md:grid-cols-5 gap-3 mt-3">
             <div>
-              <label className="block text-xs text-gray-500 mb-1">Vencendo em (dias)</label>
+              <label className="block text-xs text-gray-500 mb-1">
+                Vencendo em (dias)
+              </label>
               <input
                 type="number"
                 min={1}
@@ -356,16 +444,20 @@ export default function ContractsClient(props: Props) {
         {/* Legenda dos alertas */}
         <div className="mb-4 flex flex-wrap items-center gap-2 text-xs text-gray-600">
           <span className="inline-flex items-center gap-1">
-            <span className="inline-block h-2.5 w-2.5 rounded-full bg-emerald-500" /> D-30
+            <span className="inline-block h-2.5 w-2.5 rounded-full bg-emerald-500" />{" "}
+            D-30
           </span>
           <span className="inline-flex items-center gap-1">
-            <span className="inline-block h-2.5 w-2.5 rounded-full bg-orange-500" /> D-7
+            <span className="inline-block h-2.5 w-2.5 rounded-full bg-orange-500" />{" "}
+            D-7
           </span>
           <span className="inline-flex items-center gap-1">
-            <span className="inline-block h-2.5 w-2.5 rounded-full bg-amber-600" /> HOJE
+            <span className="inline-block h-2.5 w-2.5 rounded-full bg-amber-600" />{" "}
+            HOJE
           </span>
           <span className="inline-flex items-center gap-1">
-            <span className="inline-block h-2.5 w-2.5 rounded-full bg-red-600" /> EXPIRADO
+            <span className="inline-block h-2.5 w-2.5 rounded-full bg-red-600" />{" "}
+            EXPIRADO
           </span>
           <span className="inline-flex items-center gap-1 text-gray-400 ml-2">
             <Info size={14} />
@@ -384,21 +476,32 @@ export default function ContractsClient(props: Props) {
                 <th className="p-3 font-semibold text-gray-600">Vigência</th>
                 <th className="p-3 font-semibold text-gray-600">Valor Mensal</th>
                 <th className="p-3 font-semibold text-gray-600">Alerta</th>
-                <th className="p-3 font-semibold text-gray-600 w-32">Ações</th>
+                <th className="p-3 font-semibold text-gray-600 w-40">Ações</th>
               </tr>
             </thead>
             <tbody>
               {contracts.map((c) => {
                 const period = [
-                  c.startDate ? format(new Date(c.startDate), "dd/MM/yyyy", { locale: ptBR }) : "—",
-                  c.endDate ? format(new Date(c.endDate), "dd/MM/yyyy", { locale: ptBR }) : "—",
+                  c.startDate
+                    ? format(new Date(c.startDate), "dd/MM/yyyy", { locale: ptBR })
+                    : "—",
+                  c.endDate
+                    ? format(new Date(c.endDate), "dd/MM/yyyy", { locale: ptBR })
+                    : "—",
                 ].join(" → ");
 
                 return (
-                  <tr key={c.id} className="border-b hover:bg-gray-50 last:border-b-0">
+                  <tr
+                    key={c.id}
+                    className="border-b hover:bg-gray-50 last:border-b-0"
+                  >
                     <td className="p-3 font-medium text-gray-800">{c.code}</td>
-                    <td className="p-3 text-gray-700">{c.municipality?.name ?? "—"}</td>
-                    <td className="p-3 text-gray-700">{c.department?.name ?? "—"}</td>
+                    <td className="p-3 text-gray-700">
+                      {c.municipality?.name ?? "—"}
+                    </td>
+                    <td className="p-3 text-gray-700">
+                      {c.department?.name ?? "—"}
+                    </td>
                     <td className="p-3 text-gray-700">
                       <div className="flex items-center gap-1">
                         <Calendar size={16} className="text-gray-400" />
@@ -416,13 +519,29 @@ export default function ContractsClient(props: Props) {
                           <Clock size={12} />
                           {c.alertTag}
                           {typeof c.daysToEnd === "number" && (
-                            <span className="opacity-80 ml-1">({c.daysToEnd}d)</span>
+                            <span className="opacity-80 ml-1">
+                              ({c.daysToEnd}d)
+                            </span>
                           )}
                         </span>
                       )}
                     </td>
                     <td className="p-3">
                       <div className="flex items-center gap-2">
+                        {/* PDF individual */}
+                        <button
+                          className="text-gray-400 hover:text-indigo-600"
+                          title="Baixar PDF do contrato"
+                          onClick={() =>
+                            download(
+                              `${API_BASE}/contracts/${c.id}/export-pdf`,
+                              tsFilename(`contrato_${c.id}`, "pdf")
+                            )
+                          }
+                        >
+                          <Printer size={18} />
+                        </button>
+
                         <button
                           onClick={() => openEdit(c)}
                           className="text-gray-400 hover:text-blue-600"
