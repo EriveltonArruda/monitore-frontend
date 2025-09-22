@@ -1,6 +1,6 @@
 "use client";
 
-import { X } from 'lucide-react';
+import { X, Trash2, ImagePlus } from 'lucide-react';
 import { useState, FormEvent, useEffect, ChangeEvent } from 'react';
 
 const API_BASE = 'http://localhost:3001';
@@ -14,6 +14,8 @@ type Product = {
   categoryId: number | null; supplierId: number | null;
   mainImageUrl?: string | null;
 };
+type GalleryImage = { id: number; url: string };
+
 type ProductFormModalProps = {
   onClose: () => void;
   onSuccess: () => void;
@@ -38,12 +40,19 @@ export function ProductFormModal({
     mainImageUrl: '',
   });
 
+  // Imagem principal (mesmo fluxo que você já tinha)
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+
+  // Galeria
+  const [gallery, setGallery] = useState<GalleryImage[]>([]);
+  const [galleryUploading, setGalleryUploading] = useState(false);
+
   const [uploading, setUploading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Carrega dados do produto + galeria (em modo edição)
   useEffect(() => {
     if (isEditMode && productToEdit) {
       setFormData({
@@ -60,6 +69,12 @@ export function ProductFormModal({
         mainImageUrl: productToEdit.mainImageUrl || '',
       });
       if (productToEdit.mainImageUrl) setImagePreview(productToEdit.mainImageUrl);
+
+      // 🔁 carrega galeria
+      fetch(`${API_BASE}/products/${productToEdit.id}/images`, { cache: 'no-store' })
+        .then(r => r.json())
+        .then((imgs: GalleryImage[]) => setGallery(imgs))
+        .catch(() => setGallery([]));
     }
   }, [isEditMode, productToEdit]);
 
@@ -67,6 +82,7 @@ export function ProductFormModal({
     setFormData({ ...formData, [e.target.id]: e.target.value });
   };
 
+  // ====== Imagem principal (mantida) ======
   const handleImageChange = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files && e.target.files[0];
     setImageFile(file || null);
@@ -126,6 +142,61 @@ export function ProductFormModal({
     }
   };
 
+  // ====== Galeria: upload múltiplo ======
+  const handleGalleryChange = async (e: ChangeEvent<HTMLInputElement>) => {
+    if (!isEditMode || !productToEdit) {
+      alert('A galeria só pode ser usada após salvar o produto.');
+      return;
+    }
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+
+    setGalleryUploading(true);
+    try {
+      const fd = new FormData();
+      files.forEach(f => fd.append('files', f));
+      const res = await fetch(`${API_BASE}/products/${productToEdit.id}/images`, {
+        method: 'POST',
+        body: fd,
+      });
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({} as any));
+        throw new Error(errorData.message || 'Falha ao enviar imagens');
+      }
+      const created: GalleryImage[] = await res.json();
+      // merge com as existentes (mostra as novas primeiro)
+      setGallery(prev => [...created, ...prev]);
+      // se o produto não tinha principal, o backend já garante (ensureMainImage)
+      if (!formData.mainImageUrl && created[0]?.url) {
+        setFormData(prev => ({ ...prev, mainImageUrl: created[0].url }));
+      }
+    } catch (err: any) {
+      alert(err.message || 'Erro ao enviar imagens');
+    } finally {
+      setGalleryUploading(false);
+      // limpa input
+      e.target.value = '';
+    }
+  };
+
+  const removeGalleryImage = async (imageId: number) => {
+    if (!isEditMode || !productToEdit) return;
+    if (!confirm('Remover esta imagem da galeria?')) return;
+
+    try {
+      const res = await fetch(`${API_BASE}/products/${productToEdit.id}/images/${imageId}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({} as any));
+        throw new Error(errorData.message || 'Falha ao remover a imagem');
+      }
+      setGallery(prev => prev.filter(img => img.id !== imageId));
+    } catch (err: any) {
+      alert(err.message || 'Erro ao remover imagem');
+    }
+  };
+
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setIsSubmitting(true);
@@ -142,7 +213,7 @@ export function ProductFormModal({
     };
 
     try {
-      let response, createdId;
+      let response, createdId: number | undefined;
       if (isEditMode) {
         if (!productToEdit) throw new Error('Erro: Produto para edição não foi encontrado.');
         const url = `${API_BASE}/products/${productToEdit.id}`;
@@ -170,7 +241,7 @@ export function ProductFormModal({
         throw new Error(errorData.message || 'Falha ao salvar produto.');
       }
 
-      // Se criou agora e tem imagem escolhida, envia upload
+      // Se criou agora e tem imagem principal selecionada, envia upload principal
       if (!isEditMode && createdId && imageFile) {
         await uploadImageToApi(imageFile, createdId);
       }
@@ -189,6 +260,8 @@ export function ProductFormModal({
       ? (imagePreview.startsWith('/uploads') ? `${API_BASE}${imagePreview}` : imagePreview)
       : (formData.mainImageUrl ? `${API_BASE}${formData.mainImageUrl}` : null);
 
+  const fullUrl = (u: string) => (u.startsWith('/uploads') ? `${API_BASE}${u}` : u);
+
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-xl shadow-lg w-full max-w-2xl max-h-[90vh] flex flex-col">
@@ -202,9 +275,9 @@ export function ProductFormModal({
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto">
-          {/* Upload + Preview + Remover */}
+          {/* Imagem principal + Preview + Remover */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Imagem do Produto</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Imagem do Produto (principal)</label>
             <div className="flex items-start gap-4">
               <input
                 type="file"
@@ -219,7 +292,7 @@ export function ProductFormModal({
                   onClick={handleRemoveImage}
                   className="block text-sm text-red-500 font-semibold rounded-full border-0 py-2 px-4 bg-gray-100 hover:bg-red-500 hover:text-white"
                   disabled={isSubmitting || uploading}
-                  title="Remover imagem"
+                  title="Remover imagem principal"
                 >
                   Remover imagem
                 </button>
@@ -230,9 +303,56 @@ export function ProductFormModal({
               <div className="mt-2">
                 <img
                   src={resolvedPreview}
-                  alt="Produto"
+                  alt="Principal"
                   className="max-h-32 rounded shadow border border-gray-200"
                 />
+              </div>
+            )}
+          </div>
+
+          {/* Galeria (múltiplas imagens) */}
+          <div className="mt-2">
+            <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-2">
+              <ImagePlus size={16} />
+              Galeria de Imagens (múltiplas)
+            </label>
+
+            <div className="flex items-center gap-4">
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={handleGalleryChange}
+                className="block text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100"
+                disabled={!isEditMode || galleryUploading || isSubmitting}
+              />
+              {!isEditMode && (
+                <span className="text-xs text-gray-500">
+                  Salve o produto para habilitar a galeria.
+                </span>
+              )}
+            </div>
+
+            {/* Grid de prévias */}
+            {gallery.length > 0 && (
+              <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                {gallery.map((img) => (
+                  <div key={img.id} className="relative group rounded border border-gray-200 p-1">
+                    <img
+                      src={fullUrl(img.url)}
+                      alt="Imagem"
+                      className="h-28 w-full object-cover rounded"
+                    />
+                    <button
+                      type="button"
+                      title="Remover esta imagem"
+                      onClick={() => removeGalleryImage(img.id)}
+                      className="absolute top-1 right-1 bg-white/90 hover:bg-white text-red-600 rounded-full p-1 shadow hidden group-hover:block"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                ))}
               </div>
             )}
           </div>
@@ -324,10 +444,10 @@ export function ProductFormModal({
           {error && <div className="text-red-600 text-sm">{error}</div>}
 
           <div className="flex justify-end gap-4 pt-6 border-t border-gray-200 mt-6">
-            <button type="button" onClick={onClose} disabled={isSubmitting || uploading} className="py-2 px-4 border border-gray-300 rounded-lg text-gray-700 font-semibold hover:bg-gray-100">
+            <button type="button" onClick={onClose} disabled={isSubmitting || uploading || galleryUploading} className="py-2 px-4 border border-gray-300 rounded-lg text-gray-700 font-semibold hover:bg-gray-100">
               Cancelar
             </button>
-            <button type="submit" disabled={isSubmitting || uploading} className="py-2 px-4 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 disabled:bg-blue-300">
+            <button type="submit" disabled={isSubmitting || uploading || galleryUploading} className="py-2 px-4 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 disabled:bg-blue-300">
               {isSubmitting ? 'Salvando...' : (isEditMode ? 'Salvar Alterações' : uploading ? 'Enviando Imagem...' : 'Criar Produto')}
             </button>
           </div>
