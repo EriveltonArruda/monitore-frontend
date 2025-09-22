@@ -6,7 +6,7 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
   PlusCircle, ArrowUpRight, ArrowDownLeft, Wrench,
-  Trash2, Filter, Search, Eye, X
+  Trash2, Filter, Search, Eye, X, Printer, FileDown
 } from "lucide-react";
 import { MovementFormModal } from "./MovementFormModal";
 import { Pagination } from "../Pagination";
@@ -29,6 +29,30 @@ type MovementsPageClientProps = {
 };
 
 const ITEMS_PER_PAGE = 10;
+const API_BASE = "http://localhost:3001";
+
+// ---- helpers de download PDF ----
+async function download(url: string, filename: string) {
+  const res = await fetch(url);
+  if (!res.ok) {
+    const msg = await res.text().catch(() => "");
+    throw new Error(msg || "Falha ao baixar arquivo");
+  }
+  const blob = await res.blob();
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(a.href);
+}
+function tsFilename(prefix: string, ext: "pdf") {
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}`;
+  return `${prefix}_${stamp}.${ext}`;
+}
 
 const TYPE_OPTIONS = [
   { value: "", label: "Todos os Tipos" },
@@ -54,13 +78,13 @@ export function MovementsPageClient({
   const searchParams = useSearchParams();
   const pathname = usePathname();
 
-  // Inicializa os filtros lendo da URL
+  // Filtros vindo da URL
   const [selectedType, setSelectedType] = useState(searchParams.get("type") || "");
   const [selectedProduct, setSelectedProduct] = useState(searchParams.get("productId") || "");
   const [selectedPeriod, setSelectedPeriod] = useState(searchParams.get("period") || "");
   const [searchTerm, setSearchTerm] = useState(searchParams.get("search") || "");
 
-  // Atualiza a URL com filtros (incluindo busca)
+  // Atualiza a URL com filtros (inclui busca)
   useEffect(() => {
     const params = new URLSearchParams(searchParams.toString());
     if (selectedType) params.set("type", selectedType); else params.delete("type");
@@ -75,15 +99,14 @@ export function MovementsPageClient({
     // eslint-disable-next-line
   }, [selectedType, selectedProduct, selectedPeriod, searchTerm]);
 
-  // Modal de exclusão
+  // Modais
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [deletingMovement, setDeletingMovement] = useState<Movement | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Modal de movimentação (criação)
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // ---------- NOVO: Modal de detalhes ----------
+  // Detalhes
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [details, setDetails] = useState<Movement | null>(null);
@@ -91,7 +114,7 @@ export function MovementsPageClient({
   const openDetails = async (id: number) => {
     setDetailsLoading(true);
     try {
-      const res = await fetch(`http://localhost:3001/stock-movements/${id}`, { cache: 'no-store' });
+      const res = await fetch(`${API_BASE}/stock-movements/${id}`, { cache: 'no-store' });
       if (!res.ok) throw new Error('Falha ao carregar detalhes');
       const data = await res.json();
       setDetails(data);
@@ -107,7 +130,7 @@ export function MovementsPageClient({
     if (!deletingMovement) return;
     setIsDeleting(true);
     try {
-      const res = await fetch(`http://localhost:3001/stock-movements/${deletingMovement.id}`, {
+      const res = await fetch(`${API_BASE}/stock-movements/${deletingMovement.id}`, {
         method: "DELETE",
       });
       if (!res.ok) throw new Error("Erro ao excluir movimentação!");
@@ -118,6 +141,21 @@ export function MovementsPageClient({
       alert(error.message || "Erro ao excluir movimentação!");
     } finally {
       setIsDeleting(false);
+    }
+  };
+
+  // Exportar PDF (lista) — usa os filtros atuais da URL
+  const handleExportListPdf = async () => {
+    const params = new URLSearchParams();
+    if (selectedType) params.set("type", selectedType);
+    if (selectedProduct) params.set("productId", selectedProduct);
+    if (selectedPeriod) params.set("period", selectedPeriod);
+    if (searchTerm) params.set("search", searchTerm);
+    const url = `${API_BASE}/stock-movements/export-pdf?${params.toString()}`;
+    try {
+      await download(url, tsFilename("movimentacoes", "pdf"));
+    } catch {
+      alert("Falha ao baixar o PDF. Verifique se o backend está rodando em 3001.");
     }
   };
 
@@ -151,7 +189,7 @@ export function MovementsPageClient({
         />
       )}
 
-      {/* MODAL DETALHES (NOVO) */}
+      {/* MODAL DETALHES */}
       {isDetailsOpen && details && (
         <StockMovementDetailsModal
           movement={details}
@@ -166,6 +204,16 @@ export function MovementsPageClient({
           <p className="text-sm text-gray-500">Registre entradas, saídas e ajustes de estoque</p>
         </div>
         <div className="flex items-center gap-2">
+          {/* Exportar lista (PDF) */}
+          <button
+            onClick={handleExportListPdf}
+            className="border text-gray-700 hover:bg-gray-50 font-medium py-2 px-3 rounded-lg flex items-center gap-2"
+            title="Exportar lista (PDF)"
+          >
+            <FileDown size={18} />
+            <span>Exportar PDF</span>
+          </button>
+
           <button
             onClick={() => setIsModalOpen(true)}
             className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2"
@@ -259,7 +307,7 @@ export function MovementsPageClient({
                     <p className="text-sm text-gray-500">{formatCurrency(mov.unitPriceAtMovement)}/un</p>
                   </div>
 
-                  {/* NOVO: Ver detalhes */}
+                  {/* Ver detalhes */}
                   <button
                     title="Ver detalhes"
                     className="ml-2 text-gray-600 hover:text-blue-600 transition-colors"
@@ -267,6 +315,18 @@ export function MovementsPageClient({
                     disabled={detailsLoading}
                   >
                     <Eye size={18} />
+                  </button>
+
+                  {/* Imprimir PDF individual */}
+                  <button
+                    title="Imprimir movimentação (PDF)"
+                    className="ml-2 text-gray-400 hover:text-indigo-600 transition-colors"
+                    onClick={() =>
+                      download(`${API_BASE}/stock-movements/${mov.id}/export-pdf`, tsFilename(`mov-${mov.id}`, "pdf"))
+                        .catch(() => alert("Falha ao baixar o PDF."))
+                    }
+                  >
+                    <Printer size={18} />
                   </button>
 
                   {/* Excluir */}
@@ -332,7 +392,7 @@ const MovementTypeTag = ({ type }: { type: string }) => {
   );
 };
 
-// ---------- NOVO: Modal de Detalhes ----------
+// ---------- Modal de Detalhes ----------
 function StockMovementDetailsModal({
   movement,
   onClose,
