@@ -211,7 +211,6 @@ export function ProductFormModal({
         const data = await res.json().catch(() => ({} as any));
         throw new Error(data.message || 'Falha ao definir imagem principal');
       }
-      // backend retorna { ok: true, mainImageUrl }
       const payload: { ok: true; mainImageUrl: string } = await res.json();
       setFormData(prev => ({ ...prev, mainImageUrl: payload.mainImageUrl }));
       setImagePreview(payload.mainImageUrl);
@@ -334,7 +333,7 @@ export function ProductFormModal({
 
           {/* Galeria */}
           <div className="mt-2">
-            <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-2">
+            <label className="text-sm font-medium text-gray-700 mb-1 flex items-center gap-2">
               <ImagePlus size={16} />
               Galeria de Imagens (múltiplas)
             </label>
@@ -357,35 +356,54 @@ export function ProductFormModal({
 
             {gallery.length > 0 && (
               <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                {gallery.map((img) => (
-                  <div key={img.id} className="relative group rounded border border-gray-200 p-1">
-                    <img
-                      src={fullUrl(img.url)}
-                      alt="Imagem"
-                      className="h-28 w-full object-cover rounded"
-                    />
+                {gallery.map((img) => {
+                  const isMain = formData.mainImageUrl === img.url;
+                  return (
+                    <div
+                      key={img.id}
+                      className={`relative group rounded border p-1 ${isMain ? 'border-emerald-400' : 'border-gray-200'
+                        }`}
+                    >
+                      <img
+                        src={fullUrl(img.url)}
+                        alt="Imagem"
+                        className="h-28 w-full object-cover rounded"
+                      />
 
-                    {/* Ações por miniatura */}
-                    <div className="absolute top-1 right-1 flex gap-1">
-                      <button
-                        type="button"
-                        title="Definir como principal"
-                        onClick={() => setAsMain(img.id, img.url)}
-                        className="hidden group-hover:inline-block bg-white/90 hover:bg-white text-blue-600 rounded-full px-2 py-1 text-[10px] font-semibold shadow"
-                      >
-                        Principal
-                      </button>
-                      <button
-                        type="button"
-                        title="Remover esta imagem"
-                        onClick={() => removeGalleryImage(img.id)}
-                        className="hidden group-hover:inline-block bg-white/90 hover:bg-white text-red-600 rounded-full p-1 shadow"
-                      >
-                        <Trash2 size={14} />
-                      </button>
+                      {/* Selo quando for principal */}
+                      {isMain && (
+                        <span className="absolute bottom-1 right-1 text-[10px] px-2 py-0.5 rounded bg-emerald-600 text-white shadow">
+                          Principal
+                        </span>
+                      )}
+
+                      {/* Ações por miniatura */}
+                      <div className="absolute top-1 right-1 flex gap-1">
+                        <button
+                          type="button"
+                          title={isMain ? 'Esta já é a principal' : 'Definir como principal'}
+                          onClick={() => !isMain && setAsMain(img.id, img.url)}
+                          disabled={isMain}
+                          className={`hidden group-hover:inline-block rounded-full px-2 py-1 text-[10px] font-semibold shadow ${isMain
+                              ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                              : 'bg-white/90 hover:bg-white text-blue-600'
+                            }`}
+                        >
+                          {isMain ? 'Principal ✓' : 'Principal'}
+                        </button>
+
+                        <button
+                          type="button"
+                          title="Remover esta imagem"
+                          onClick={() => removeGalleryImage(img.id)}
+                          className="hidden group-hover:inline-block bg-white/90 hover:bg-white text-red-600 rounded-full p-1 shadow"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
