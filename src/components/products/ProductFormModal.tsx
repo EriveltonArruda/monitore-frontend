@@ -40,7 +40,7 @@ export function ProductFormModal({
     mainImageUrl: '',
   });
 
-  // Imagem principal (mesmo fluxo que você já tinha)
+  // Imagem principal
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
 
@@ -52,7 +52,6 @@ export function ProductFormModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Carrega dados do produto + galeria (em modo edição)
   useEffect(() => {
     if (isEditMode && productToEdit) {
       setFormData({
@@ -70,7 +69,6 @@ export function ProductFormModal({
       });
       if (productToEdit.mainImageUrl) setImagePreview(productToEdit.mainImageUrl);
 
-      // 🔁 carrega galeria
       fetch(`${API_BASE}/products/${productToEdit.id}/images`, { cache: 'no-store' })
         .then(r => r.json())
         .then((imgs: GalleryImage[]) => setGallery(imgs))
@@ -82,7 +80,7 @@ export function ProductFormModal({
     setFormData({ ...formData, [e.target.id]: e.target.value });
   };
 
-  // ====== Imagem principal (mantida) ======
+  // ====== Imagem principal ======
   const handleImageChange = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files && e.target.files[0];
     setImageFile(file || null);
@@ -142,7 +140,7 @@ export function ProductFormModal({
     }
   };
 
-  // ====== Galeria: upload múltiplo ======
+  // ====== Galeria ======
   const handleGalleryChange = async (e: ChangeEvent<HTMLInputElement>) => {
     if (!isEditMode || !productToEdit) {
       alert('A galeria só pode ser usada após salvar o produto.');
@@ -164,17 +162,16 @@ export function ProductFormModal({
         throw new Error(errorData.message || 'Falha ao enviar imagens');
       }
       const created: GalleryImage[] = await res.json();
-      // merge com as existentes (mostra as novas primeiro)
       setGallery(prev => [...created, ...prev]);
-      // se o produto não tinha principal, o backend já garante (ensureMainImage)
+
       if (!formData.mainImageUrl && created[0]?.url) {
         setFormData(prev => ({ ...prev, mainImageUrl: created[0].url }));
+        setImagePreview(created[0].url);
       }
     } catch (err: any) {
       alert(err.message || 'Erro ao enviar imagens');
     } finally {
       setGalleryUploading(false);
-      // limpa input
       e.target.value = '';
     }
   };
@@ -191,9 +188,35 @@ export function ProductFormModal({
         const errorData = await res.json().catch(() => ({} as any));
         throw new Error(errorData.message || 'Falha ao remover a imagem');
       }
+      const payload: { ok: true; updatedMainImageUrl?: string | null } = await res.json();
+
       setGallery(prev => prev.filter(img => img.id !== imageId));
+
+      if (typeof payload.updatedMainImageUrl !== 'undefined') {
+        setFormData(prev => ({ ...prev, mainImageUrl: payload.updatedMainImageUrl || '' }));
+        setImagePreview(payload.updatedMainImageUrl || null);
+      }
     } catch (err: any) {
       alert(err.message || 'Erro ao remover imagem');
+    }
+  };
+
+  const setAsMain = async (imageId: number, url: string) => {
+    if (!isEditMode || !productToEdit) return;
+    try {
+      const res = await fetch(`${API_BASE}/products/${productToEdit.id}/images/${imageId}/set-main`, {
+        method: 'PATCH',
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({} as any));
+        throw new Error(data.message || 'Falha ao definir imagem principal');
+      }
+      // backend retorna { ok: true, mainImageUrl }
+      const payload: { ok: true; mainImageUrl: string } = await res.json();
+      setFormData(prev => ({ ...prev, mainImageUrl: payload.mainImageUrl }));
+      setImagePreview(payload.mainImageUrl);
+    } catch (err: any) {
+      alert(err.message || 'Erro ao definir imagem principal');
     }
   };
 
@@ -241,7 +264,6 @@ export function ProductFormModal({
         throw new Error(errorData.message || 'Falha ao salvar produto.');
       }
 
-      // Se criou agora e tem imagem principal selecionada, envia upload principal
       if (!isEditMode && createdId && imageFile) {
         await uploadImageToApi(imageFile, createdId);
       }
@@ -275,7 +297,7 @@ export function ProductFormModal({
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto">
-          {/* Imagem principal + Preview + Remover */}
+          {/* Imagem principal */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Imagem do Produto (principal)</label>
             <div className="flex items-start gap-4">
@@ -310,7 +332,7 @@ export function ProductFormModal({
             )}
           </div>
 
-          {/* Galeria (múltiplas imagens) */}
+          {/* Galeria */}
           <div className="mt-2">
             <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-2">
               <ImagePlus size={16} />
@@ -333,7 +355,6 @@ export function ProductFormModal({
               )}
             </div>
 
-            {/* Grid de prévias */}
             {gallery.length > 0 && (
               <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                 {gallery.map((img) => (
@@ -343,14 +364,26 @@ export function ProductFormModal({
                       alt="Imagem"
                       className="h-28 w-full object-cover rounded"
                     />
-                    <button
-                      type="button"
-                      title="Remover esta imagem"
-                      onClick={() => removeGalleryImage(img.id)}
-                      className="absolute top-1 right-1 bg-white/90 hover:bg-white text-red-600 rounded-full p-1 shadow hidden group-hover:block"
-                    >
-                      <Trash2 size={14} />
-                    </button>
+
+                    {/* Ações por miniatura */}
+                    <div className="absolute top-1 right-1 flex gap-1">
+                      <button
+                        type="button"
+                        title="Definir como principal"
+                        onClick={() => setAsMain(img.id, img.url)}
+                        className="hidden group-hover:inline-block bg-white/90 hover:bg-white text-blue-600 rounded-full px-2 py-1 text-[10px] font-semibold shadow"
+                      >
+                        Principal
+                      </button>
+                      <button
+                        type="button"
+                        title="Remover esta imagem"
+                        onClick={() => removeGalleryImage(img.id)}
+                        className="hidden group-hover:inline-block bg-white/90 hover:bg-white text-red-600 rounded-full p-1 shadow"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
