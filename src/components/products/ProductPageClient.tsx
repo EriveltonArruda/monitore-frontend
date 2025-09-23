@@ -2,12 +2,36 @@
 
 import React, { useState, useEffect } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { PlusCircle, Search, Pencil, Trash2, Eye } from 'lucide-react';
+import { PlusCircle, Search, Pencil, Trash2, Eye, FileDown } from 'lucide-react';
 import { ProductFormModal } from './ProductFormModal';
 import { DeleteConfirmationModal } from '../DeleteConfirmationModal';
 import { Pagination } from '../Pagination';
 
 const API_BASE = 'http://localhost:3001';
+
+// ---------- helpers de download ----------
+async function download(url: string, filename: string) {
+  const res = await fetch(url);
+  if (!res.ok) {
+    let msg = 'Falha ao baixar arquivo';
+    try { msg = (await res.text()) || msg; } catch { }
+    throw new Error(msg);
+  }
+  const blob = await res.blob();
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(a.href);
+}
+function tsFilename(prefix: string, ext: 'pdf' | 'xlsx') {
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}`;
+  return `${prefix}_${stamp}.${ext}`;
+}
 
 // Modal para visualizar imagem
 function ProductImageModal({ product, onClose }: { product: Product | null, onClose: () => void }) {
@@ -164,6 +188,22 @@ export function ProductPageClient({ products, totalProducts, categories, supplie
   const totalPages = Math.ceil(totalProducts / ITEMS_PER_PAGE);
   const currentPage = Number(searchParams.get('page')) || 1;
 
+  // ====== handlers de export ======
+  const handleExportPdf = async () => {
+    try {
+      await download(`${API_BASE}/products/export-pdf`, tsFilename('produtos', 'pdf'));
+    } catch (e: any) {
+      alert(e?.message || 'Falha ao baixar PDF');
+    }
+  };
+  const handleExportExcel = async () => {
+    try {
+      await download(`${API_BASE}/products/export-excel`, tsFilename('produtos', 'xlsx'));
+    } catch (e: any) {
+      alert(e?.message || 'Falha ao baixar Excel');
+    }
+  };
+
   return (
     <>
       {isModalOpen && (
@@ -197,6 +237,24 @@ export function ProductPageClient({ products, totalProducts, categories, supplie
             <p className="text-sm text-gray-500">Gerencie todos os produtos do seu estoque</p>
           </div>
           <div className="flex items-center gap-2">
+            {/* Exportações */}
+            <button
+              onClick={handleExportPdf}
+              className="border text-gray-700 hover:bg-gray-50 font-medium py-2 px-3 rounded-lg flex items-center gap-2"
+              title="Exportar lista (PDF)"
+            >
+              <FileDown size={18} />
+              <span>Exportar PDF</span>
+            </button>
+            <button
+              onClick={handleExportExcel}
+              className="border text-gray-700 hover:bg-gray-50 font-medium py-2 px-3 rounded-lg flex items-center gap-2"
+              title="Exportar lista (Excel)"
+            >
+              <FileDown size={18} />
+              <span>Exportar Excel</span>
+            </button>
+
             <button
               onClick={handleOpenCreateModal}
               className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2"
