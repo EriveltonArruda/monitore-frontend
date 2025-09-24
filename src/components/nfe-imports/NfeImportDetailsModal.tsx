@@ -1,4 +1,3 @@
-// components/nfe-imports/NfeImportDetailsModal.tsx
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -73,7 +72,7 @@ export function NfeImportDetailsModal({ importId, onClose, onApplied }: Props) {
   const [pdfRemoving, setPdfRemoving] = useState(false);
   const pdfInputRef = useRef<HTMLInputElement | null>(null);
 
-  // ------- carregar detalhes (reutilizável) -------
+  // ------- carregar detalhes -------
   const fetchDetails = async () => {
     setLoading(true);
     try {
@@ -201,14 +200,12 @@ export function NfeImportDetailsModal({ importId, onClose, onApplied }: Props) {
       alert(err?.message || 'Erro ao anexar PDF');
     } finally {
       setPdfUploading(false);
-      // limpa o input pra permitir reenvio do mesmo arquivo
       if (pdfInputRef.current) pdfInputRef.current.value = '';
     }
   };
 
   const openPdf = () => {
     if (!data?.pdfPath) return;
-    // como o backend serve estáticos em /uploads, o pdfPath já é /uploads/...
     const url = `${API_BASE}${data.pdfPath}`;
     window.open(url, '_blank', 'noopener,noreferrer');
   };
