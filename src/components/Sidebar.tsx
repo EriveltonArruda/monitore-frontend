@@ -19,7 +19,7 @@ import {
   BarChart2,
   Plane,         // ícone Despesas de Viagem
   FilePieChart,  // ícone Relatório de Despesas de Viagem
-  FileText,      // ícone Contratos
+  FileText,      // ícone Contratos + NF-e (XML)
   HandCoins,     // ícone Recebidos
   ChevronsLeft,
   ChevronsRight,
@@ -36,6 +36,10 @@ const estoqueLinks = [
   { href: "/dashboard/categories", label: "Categorias", icon: Tags, module: UserModule.ESTOQUE },
   { href: "/dashboard/suppliers", label: "Fornecedores", icon: Building, module: UserModule.FORNECEDORES },
   { href: "/dashboard/movements", label: "Movimentações", icon: ArrowRightLeft, module: UserModule.MOVIMENTACOES },
+
+  // ✅ ADICIONADO: módulo de NF-e (XML)
+  { href: "/dashboard/nfe-imports", label: "NF-e (XML)", icon: FileText, module: UserModule.ESTOQUE },
+
   { href: "/dashboard/reports", label: "Relatórios", icon: ScrollText, module: UserModule.RELATORIOS },
 ];
 

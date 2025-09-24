@@ -385,8 +385,8 @@ export function ProductFormModal({
                           onClick={() => !isMain && setAsMain(img.id, img.url)}
                           disabled={isMain}
                           className={`hidden group-hover:inline-block rounded-full px-2 py-1 text-[10px] font-semibold shadow ${isMain
-                              ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                              : 'bg-white/90 hover:bg-white text-blue-600'
+                            ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                            : 'bg-white/90 hover:bg-white text-blue-600'
                             }`}
                         >
                           {isMain ? 'Principal ✓' : 'Principal'}
