@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { PlusCircle, Search, Pencil, Trash2, Eye, FileDown } from 'lucide-react';
+import { PlusCircle, Search, Pencil, Trash2, Eye, FileDown, Printer } from 'lucide-react';
 import { ProductFormModal } from './ProductFormModal';
 import { DeleteConfirmationModal } from '../DeleteConfirmationModal';
 import { Pagination } from '../Pagination';
@@ -204,6 +204,17 @@ export function ProductPageClient({ products, totalProducts, categories, supplie
     }
   };
 
+  // ====== navegação para impressão ======
+  const handleGoToPrint = () => {
+    const qs = new URLSearchParams();
+    if (searchTerm) qs.set('search', searchTerm);
+    if (selectedCategory) qs.set('categoryId', selectedCategory);
+    if (selectedStatus) qs.set('status', selectedStatus);
+    if (selectedStockLevel) qs.set('stockLevel', selectedStockLevel);
+    // a página de impressão já força page=1&limit=1000 internamente
+    router.push(`/dashboard/print/produtos?${qs.toString()}`);
+  };
+
   return (
     <>
       {isModalOpen && (
@@ -237,6 +248,16 @@ export function ProductPageClient({ products, totalProducts, categories, supplie
             <p className="text-sm text-gray-500">Gerencie todos os produtos do seu estoque</p>
           </div>
           <div className="flex items-center gap-2">
+            {/* Imprimir (navega para tela de impressão) */}
+            <button
+              onClick={handleGoToPrint}
+              className="border text-gray-700 hover:bg-gray-50 font-medium py-2 px-3 rounded-lg flex items-center gap-2"
+              title="Imprimir (tela de impressão)"
+            >
+              <Printer size={18} />
+              <span>Imprimir</span>
+            </button>
+
             {/* Exportações */}
             <button
               onClick={handleExportPdf}

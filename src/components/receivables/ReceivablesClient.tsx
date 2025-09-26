@@ -371,6 +371,21 @@ export default function ReceivablesClient(props: Props) {
     await download(url, tsFilename("recebiveis", "pdf"));
   };
 
+  // 🖨️ Imprimir (navega para rota de impressão com filtros atuais)
+  const goToPrint = () => {
+    const qs = new URLSearchParams();
+    if (qMunicipalityId) qs.set("municipalityId", qMunicipalityId);
+    if (qDepartmentId) qs.set("departmentId", qDepartmentId);
+    if (qContractId) qs.set("contractId", qContractId);
+    if (qStatus) qs.set("status", qStatus);
+    if (qSearch) qs.set("search", qSearch);
+    if (qIssueFrom) qs.set("issueFrom", qIssueFrom);
+    if (qIssueTo) qs.set("issueTo", qIssueTo);
+    if (qOrderBy) qs.set("orderBy", qOrderBy);
+    if (qOrder) qs.set("order", qOrder);
+    router.push(`/dashboard/print/recebidos?${qs.toString()}`);
+  };
+
   return (
     <>
       {/* Modal Form */}
@@ -414,6 +429,16 @@ export default function ReceivablesClient(props: Props) {
           withSearch={false}
           actions={
             <>
+              {/* 🖨️ Imprimir (rota de impressão) */}
+              <button
+                onClick={goToPrint}
+                className="border border-gray-300 hover:bg-gray-50 text-gray-700 font-medium py-2 px-3 rounded-lg flex items-center gap-2"
+                title="Imprimir / Página de impressão"
+              >
+                <Printer size={18} />
+                <span>Imprimir</span>
+              </button>
+
               <button
                 onClick={exportCSV}
                 className="border border-gray-300 hover:bg-gray-50 text-gray-700 font-medium py-2 px-3 rounded-lg flex items-center gap-2"
@@ -728,8 +753,8 @@ export default function ReceivablesClient(props: Props) {
                             onClick={() => markAsReceived(r)}
                             disabled={isBusy}
                             className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-sm transition-colors ${isBusy
-                              ? "opacity-60 cursor-not-allowed"
-                              : "hover:bg-emerald-50 border-emerald-600 text-emerald-700"
+                                ? "opacity-60 cursor-not-allowed"
+                                : "hover:bg-emerald-50 border-emerald-600 text-emerald-700"
                               }`}
                             title="Marcar como recebido"
                           >

@@ -68,6 +68,26 @@ const PERIOD_OPTIONS = [
   { value: "last30", label: "Último Mês" }
 ];
 
+// 🔧 converte o filtro de período em dateFrom/dateTo (YYYY-MM-DD)
+function periodToRange(period: string): { from: string; to: string } | null {
+  const today = new Date();
+  const toIso = (d: Date) => d.toISOString().slice(0, 10);
+  if (period === "today") {
+    return { from: toIso(today), to: toIso(today) };
+  }
+  if (period === "last7") {
+    const from = new Date(today);
+    from.setDate(from.getDate() - 6);
+    return { from: toIso(from), to: toIso(today) };
+  }
+  if (period === "last30") {
+    const from = new Date(today);
+    from.setDate(from.getDate() - 29);
+    return { from: toIso(from), to: toIso(today) };
+  }
+  return null;
+}
+
 export function MovementsPageClient({
   initialMovements,
   totalMovements,
@@ -159,6 +179,25 @@ export function MovementsPageClient({
     }
   };
 
+  // 🖨️ Imprimir (navega para /dashboard/print/movimentacoes com os filtros atuais)
+  const handleGoPrint = () => {
+    const qs = new URLSearchParams();
+    if (selectedType) qs.set("type", selectedType);
+    if (selectedProduct) qs.set("productId", selectedProduct);
+    if (searchTerm) qs.set("search", searchTerm);
+
+    const range = periodToRange(selectedPeriod);
+    if (range) {
+      qs.set("dateFrom", range.from);
+      qs.set("dateTo", range.to);
+    }
+
+    // alias "movimentacoes" mapeia para "stock-movements" na página de impressão
+    const url = `/dashboard/print/movimentacoes?${qs.toString()}`;
+    // abrir em nova aba para não perder a lista
+    window.open(url, "_blank");
+  };
+
   // Paginação
   const totalPages = Math.ceil(totalMovements / ITEMS_PER_PAGE);
   const currentPage = Number(searchParams.get("page")) || 1;
@@ -212,6 +251,16 @@ export function MovementsPageClient({
           >
             <FileDown size={18} />
             <span>Exportar PDF</span>
+          </button>
+
+          {/* Imprimir (rota de impressão) */}
+          <button
+            onClick={handleGoPrint}
+            className="border text-gray-700 hover:bg-gray-50 font-medium py-2 px-3 rounded-lg flex items-center gap-2"
+            title="Imprimir (tela de impressão)"
+          >
+            <Printer size={18} />
+            <span>Imprimir</span>
           </button>
 
           <button

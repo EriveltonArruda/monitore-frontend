@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { PlusCircle, Pencil, Trash2, Search } from 'lucide-react';
+import { PlusCircle, Pencil, Trash2, Search, Printer } from 'lucide-react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { ContactFormModal } from './ContactFormModal';
 import { DeleteConfirmationModal } from '../DeleteConfirmationModal';
@@ -46,7 +46,14 @@ export function ContactsPageClient({ initialContacts, totalContacts }: ContactsP
       router.push(`${pathname}?${params.toString()}`);
     }, 300);
     return () => clearTimeout(debounce);
-  }, [searchTerm, pathname, router]);
+  }, [searchTerm, pathname, router, searchParams]);
+
+  // ---- imprimir (navega para a página de impressão mantendo filtros relevantes) ----
+  const handlePrint = () => {
+    const qs = new URLSearchParams();
+    if (searchTerm) qs.set('search', searchTerm);
+    router.push(`/dashboard/print/contatos?${qs.toString()}`);
+  };
 
   // ... resto igual
 
@@ -100,13 +107,23 @@ export function ContactsPageClient({ initialContacts, totalContacts }: ContactsP
             <h1 className="text-3xl font-bold">Lista de Contatos</h1>
             <p className="text-sm text-gray-500">Gerencie seus clientes, fornecedores e parceiros</p>
           </div>
-          <button
-            onClick={handleOpenCreateModal}
-            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2"
-          >
-            <PlusCircle size={20} />
-            <span>Novo Contato</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handlePrint}
+              className="border text-gray-700 hover:bg-gray-50 font-medium py-2 px-3 rounded-lg flex items-center gap-2"
+              title="Imprimir (com filtros atuais)"
+            >
+              <Printer size={18} />
+              <span>Imprimir</span>
+            </button>
+            <button
+              onClick={handleOpenCreateModal}
+              className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2"
+            >
+              <PlusCircle size={20} />
+              <span>Novo Contato</span>
+            </button>
+          </div>
         </div>
 
         {/* CAMPO DE BUSCA */}

@@ -3,7 +3,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { PlusCircle, Pencil, Trash2 } from 'lucide-react';
+import { PlusCircle, Pencil, Trash2, Printer } from 'lucide-react'; // ✅ add Printer
 import DepartmentFormModal from './DepartmentFormModal';
 import { DeleteConfirmationModal } from '@/components/DeleteConfirmationModal';
 import { Pagination } from '../Pagination';
@@ -72,6 +72,14 @@ export default function DepartmentsClient({
   const openEdit = (d: Department) => { setEditing(d); setIsFormOpen(true); };
   const confirmDelete = (d: Department) => { setDeleting(d); setIsDeleteOpen(true); };
 
+  // ✅ imprimir com filtros atuais
+  const handlePrint = () => {
+    const qs = new URLSearchParams();
+    if (qSearch) qs.set('search', qSearch);
+    if (qMunicipalityId) qs.set('municipalityId', qMunicipalityId);
+    router.push(`/dashboard/print/orgaos?${qs.toString()}`);
+  };
+
   return (
     <>
       {/* Modal Form */}
@@ -109,13 +117,25 @@ export default function DepartmentsClient({
             <h1 className="text-3xl font-bold text-gray-800">Órgãos / Secretarias</h1>
             <p className="text-sm text-gray-500">Vinculados a cada município</p>
           </div>
-          <button
-            onClick={openCreate}
-            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2"
-          >
-            <PlusCircle size={20} />
-            <span>Novo Órgão</span>
-          </button>
+          <div className="flex items-center gap-2">
+            {/* ✅ Botão Imprimir */}
+            <button
+              onClick={handlePrint}
+              className="border text-gray-700 hover:bg-gray-50 font-medium py-2 px-3 rounded-lg flex items-center gap-2"
+              title="Imprimir (com filtros atuais)"
+            >
+              <Printer size={18} />
+              <span>Imprimir</span>
+            </button>
+
+            <button
+              onClick={openCreate}
+              className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2"
+            >
+              <PlusCircle size={20} />
+              <span>Novo Órgão</span>
+            </button>
+          </div>
         </div>
 
         {/* Filtros */}

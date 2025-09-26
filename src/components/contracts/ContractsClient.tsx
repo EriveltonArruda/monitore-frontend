@@ -1,4 +1,4 @@
-// src/app/dashboard/components/contracts/ContractsClient.tsx 
+// src/components/contracts/ContractsClient.tsx 
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
@@ -11,14 +11,13 @@ import {
   Clock,
   Info,
   FileDown,
-  Printer,
+  Printer, // ✅ já estava importado para PDF individual, reusamos ícone
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import ContractFormModal from "./ContractsFormModal";
 import { DeleteConfirmationModal } from "@/components/DeleteConfirmationModal";
 import { Pagination } from "@/components/Pagination";
-// ✅ caminho corrigido do Topbar (mesmo nível de /components/)
 import Topbar from "../layout/Topbar";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:3001";
@@ -112,7 +111,7 @@ function alertTooltip(c: Contract) {
 }
 
 export default function ContractsClient(props: Props) {
-  const { initialContracts, totalContracts, page, totalPages, municipalities } =
+  const { initialContracts, totalContracts, page, totalPages, limit, municipalities } =
     props;
 
   const router = useRouter();
@@ -238,7 +237,7 @@ export default function ContractsClient(props: Props) {
     setIsFormOpen(true);
   };
 
-  // 📄 Exportar PDF (lista com filtros da URL)
+  // 📄 Exportar PDF (lista com filtros da URL) — backend direto
   const exportListPdf = async () => {
     const qs = new URLSearchParams();
     if (qMunicipalityId) qs.set("municipalityId", qMunicipalityId);
@@ -256,6 +255,20 @@ export default function ContractsClient(props: Props) {
     } catch (err) {
       alert((err as Error).message);
     }
+  };
+
+  // 🖨️ Imprimir (navega para rota de impressão com filtros atuais)
+  const goToPrint = () => {
+    const qs = new URLSearchParams();
+    if (qMunicipalityId) qs.set("municipalityId", qMunicipalityId);
+    if (qDepartmentId) qs.set("departmentId", qDepartmentId);
+    if (qSearch) qs.set("search", qSearch);
+    if (qEndFrom) qs.set("endFrom", qEndFrom);
+    if (qEndTo) qs.set("endTo", qEndTo);
+    if (qDueInDays) qs.set("dueInDays", qDueInDays);
+    if (qExpiredOnly) qs.set("expiredOnly", qExpiredOnly);
+    if (qOrder) qs.set("order", qOrder);
+    router.push(`/dashboard/print/contratos?${qs.toString()}`);
   };
 
   // presets para “Novo Contrato” com base nos filtros aplicados
@@ -303,6 +316,17 @@ export default function ContractsClient(props: Props) {
           notifications={notifCounts}
           actions={
             <>
+              {/* 🖨️ Imprimir (rota de impressão) */}
+              <button
+                onClick={goToPrint}
+                className="border text-gray-700 hover:bg-gray-50 font-medium py-2 px-3 rounded-lg flex items-center gap-2"
+                title="Imprimir / Página de impressão"
+              >
+                <Printer size={18} />
+                <span>Imprimir</span>
+              </button>
+
+              {/* PDF direto do backend (mantido, se quiser) */}
               <button
                 onClick={exportListPdf}
                 className="border text-gray-700 hover:bg-gray-50 font-medium py-2 px-3 rounded-lg flex items-center gap-2"
@@ -311,6 +335,7 @@ export default function ContractsClient(props: Props) {
                 <FileDown size={18} />
                 <span>Exportar PDF</span>
               </button>
+
               <button
                 onClick={openCreate}
                 className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2"
