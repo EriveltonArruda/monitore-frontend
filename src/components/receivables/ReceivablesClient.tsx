@@ -17,13 +17,15 @@ import {
   Download,
   FileDown,
   Printer,
+  X,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Pagination } from "@/components/Pagination";
 import { DeleteConfirmationModal } from "@/components/DeleteConfirmationModal";
 import ReceivablesFormModal from "./ReceivablesFormModal";
-import Topbar from '../../components/layout/Topbar';
+// 🔧 caminho corrigido para o Topbar
+import Topbar from "../layout/Topbar";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:3001";
 
@@ -147,7 +149,7 @@ export default function ReceivablesClient(props: Props) {
   // processamento por linha (marcar como recebido)
   const [processing, setProcessing] = useState<Set<number>>(new Set());
 
-  // filtros (querystring)
+  // ===== filtros (querystring) =====
   const qSearch = searchParams.get("search") || "";
   const qMunicipalityId = searchParams.get("municipalityId") || "";
   const qDepartmentId = searchParams.get("departmentId") || "";
@@ -239,8 +241,7 @@ export default function ReceivablesClient(props: Props) {
   const handleOrder = (e: React.ChangeEvent<HTMLSelectElement>) =>
     setParam("order", e.target.value);
 
-  const orderIcon =
-    qOrder === "asc" ? <SortAsc size={14} /> : <SortDesc size={14} />;
+  const orderIcon = qOrder === "asc" ? <SortAsc size={14} /> : <SortDesc size={14} />;
 
   // 🔧 Adapter: remove o `contract` original e injeta o mini-contrato opcional
   const adaptForModal = (r?: Receivable): ModalReceivable | undefined => {
@@ -261,15 +262,12 @@ export default function ReceivablesClient(props: Props) {
     setIsFormOpen(true);
   };
 
-  // ✅ Ação rápida: marcar como RECEBIDO (com receivedAt = hoje)
+  // ✅ Ação rápida: marcar como RECEBIDO
   const markAsReceived = async (r: Receivable) => {
     if (r.status === "RECEBIDO") return;
     setProcessing((prev) => new Set(prev).add(r.id));
     try {
-      const payload = {
-        status: "RECEBIDO",
-        receivedAt: new Date().toISOString(),
-      };
+      const payload = { status: "RECEBIDO", receivedAt: new Date().toISOString() };
       const res = await fetch(`${API_BASE}/receivables/${r.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -330,14 +328,8 @@ export default function ReceivablesClient(props: Props) {
         fmtDate(r.deliveryDate),
         fmtDate(r.receivedAt),
         statusLabel[r.status],
-        (r.grossAmount ?? 0).toLocaleString("pt-BR", {
-          style: "currency",
-          currency: "BRL",
-        }),
-        (r.netAmount ?? 0).toLocaleString("pt-BR", {
-          style: "currency",
-          currency: "BRL",
-        }),
+        (r.grossAmount ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }),
+        (r.netAmount ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }),
       ];
       return cols.map((c) => esc(String(c))).join(";");
     });
@@ -371,7 +363,7 @@ export default function ReceivablesClient(props: Props) {
     await download(url, tsFilename("recebiveis", "pdf"));
   };
 
-  // 🖨️ Imprimir (navega para rota de impressão com filtros atuais)
+  // 🖨️ Imprimir (rota de impressão)
   const goToPrint = () => {
     const qs = new URLSearchParams();
     if (qMunicipalityId) qs.set("municipalityId", qMunicipalityId);
@@ -383,8 +375,67 @@ export default function ReceivablesClient(props: Props) {
     if (qIssueTo) qs.set("issueTo", qIssueTo);
     if (qOrderBy) qs.set("orderBy", qOrderBy);
     if (qOrder) qs.set("order", qOrder);
+    // alias 'recebidos' → 'receivables' já tratado no [kind]/page.tsx
     router.push(`/dashboard/print/recebidos?${qs.toString()}`);
   };
+
+  // ===== Chips / Limpar tudo =====
+  const removeFilter = (key: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete(key);
+    // dependências
+    if (key === "municipalityId") {
+      params.delete("departmentId");
+      params.delete("contractId");
+    }
+    if (key === "departmentId") {
+      params.delete("contractId");
+    }
+    params.set("page", "1");
+    router.push(`?${params.toString()}`);
+  };
+
+  const clearFilters = () => {
+    const params = new URLSearchParams();
+    params.set("page", "1");
+    router.push(`?${params.toString()}`);
+  };
+
+  const municipalityLabel = useMemo(() => {
+    if (!qMunicipalityId) return null;
+    const m = municipalities.find((x) => String(x.id) === qMunicipalityId);
+    return m?.name || `Município #${qMunicipalityId}`;
+  }, [qMunicipalityId, municipalities]);
+
+  const departmentLabel = useMemo(() => {
+    if (!qDepartmentId) return null;
+    const d = departments.find((x) => String(x.id) === qDepartmentId);
+    return d?.name || `Órgão #${qDepartmentId}`;
+  }, [qDepartmentId, departments]);
+
+  const contractLabel = useMemo(() => {
+    if (!qContractId) return null;
+    const c = contracts.find((x) => String(x.id) === qContractId);
+    return c?.code || `Contrato #${qContractId}`;
+  }, [qContractId, contracts]);
+
+  const issueFromLabel = qIssueFrom ? format(new Date(qIssueFrom), "dd/MM/yyyy") : null;
+  const issueToLabel = qIssueTo ? format(new Date(qIssueTo), "dd/MM/yyyy") : null;
+
+  const orderByLabel =
+    qOrderBy === "receivedAt" ? "Recebimento" : qOrderBy === "grossAmount" ? "Valor Bruto" : "Emissão";
+  const orderLabel = qOrder === "asc" ? "Ascendente" : "Descendente";
+
+  const hasActive =
+    !!qSearch ||
+    !!qMunicipalityId ||
+    !!qDepartmentId ||
+    !!qContractId ||
+    !!qStatus ||
+    !!qIssueFrom ||
+    !!qIssueTo ||
+    !!qOrderBy ||
+    !!qOrder;
 
   return (
     <>
@@ -399,13 +450,10 @@ export default function ReceivablesClient(props: Props) {
       {/* Modal Delete */}
       {isDeleteOpen && deleting && (
         <DeleteConfirmationModal
-          itemName={`${deleting.noteNumber ?? "Sem NF"} – ${deleting.contract?.code ?? ""
-            }`}
+          itemName={`${deleting.noteNumber ?? "Sem NF"} – ${deleting.contract?.code ?? ""}`}
           onConfirm={async () => {
             try {
-              await fetch(`${API_BASE}/receivables/${deleting.id}`, {
-                method: "DELETE",
-              });
+              await fetch(`${API_BASE}/receivables/${deleting.id}`, { method: "DELETE" });
               setIsDeleteOpen(false);
               setDeleting(null);
               router.refresh();
@@ -490,10 +538,7 @@ export default function ReceivablesClient(props: Props) {
           <div className="bg-white rounded-xl p-3 shadow-sm lg:col-span-1 sm:col-span-2">
             <p className="text-xs text-gray-500">Σ Líquido</p>
             <p className="text-lg font-semibold">
-              {kpis.liquido.toLocaleString("pt-BR", {
-                style: "currency",
-                currency: "BRL",
-              })}
+              {kpis.liquido.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
             </p>
           </div>
         </div>
@@ -532,9 +577,7 @@ export default function ReceivablesClient(props: Props) {
             </div>
 
             <div>
-              <label className="block text-xs text-gray-500 mb-1">
-                Órgão/Secretaria
-              </label>
+              <label className="block text-xs text-gray-500 mb-1">Órgão/Secretaria</label>
               <select
                 value={qDepartmentId}
                 onChange={handleDepartment}
@@ -587,9 +630,7 @@ export default function ReceivablesClient(props: Props) {
 
           <div className="grid grid-cols-1 md:grid-cols-6 gap-3 mt-3">
             <div>
-              <label className="block text-xs text-gray-500 mb-1">
-                Emissão de
-              </label>
+              <label className="block text-xs text-gray-500 mb-1">Emissão de</label>
               <input
                 type="date"
                 value={qIssueFrom}
@@ -598,9 +639,7 @@ export default function ReceivablesClient(props: Props) {
               />
             </div>
             <div>
-              <label className="block text-xs text-gray-500 mb-1">
-                Emissão até
-              </label>
+              <label className="block text-xs text-gray-500 mb-1">Emissão até</label>
               <input
                 type="date"
                 value={qIssueTo}
@@ -610,9 +649,7 @@ export default function ReceivablesClient(props: Props) {
             </div>
 
             <div>
-              <label className="block text-xs text-gray-500 mb-1">
-                Ordenar por
-              </label>
+              <label className="block text-xs text-gray-500 mb-1">Ordenar por</label>
               <select
                 value={qOrderBy}
                 onChange={handleOrderBy}
@@ -636,24 +673,136 @@ export default function ReceivablesClient(props: Props) {
                 <option value="asc">Ascendente</option>
                 <option value="desc">Descendente</option>
               </select>
-              <div className="mt-1 text-gray-400">{qOrder === "asc" ? <SortAsc size={14} /> : <SortDesc size={14} />}</div>
+              <div className="mt-1 text-gray-400">{orderIcon}</div>
             </div>
           </div>
         </div>
 
+        {/* Chips dos filtros ativos */}
+        {hasActive && (
+          <div className="bg-white p-3 rounded-xl shadow-sm mb-6 flex flex-wrap items-center gap-2">
+            <span className="text-xs text-gray-500 mr-1">Filtros ativos:</span>
+
+            {!!qSearch && (
+              <button
+                className="inline-flex items-center gap-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2.5 py-1 rounded-full"
+                onClick={() => removeFilter("search")}
+                title={`Remover busca: “${qSearch}”`}
+              >
+                <span>Busca: “{qSearch}”</span>
+                <X size={12} />
+              </button>
+            )}
+
+            {!!qMunicipalityId && (
+              <button
+                className="inline-flex items-center gap-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2.5 py-1 rounded-full"
+                onClick={() => removeFilter("municipalityId")}
+                title="Remover município"
+              >
+                <span>Município: {municipalityLabel}</span>
+                <X size={12} />
+              </button>
+            )}
+
+            {!!qDepartmentId && (
+              <button
+                className="inline-flex items-center gap-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2.5 py-1 rounded-full"
+                onClick={() => removeFilter("departmentId")}
+                title="Remover órgão"
+              >
+                <span>Órgão: {departmentLabel}</span>
+                <X size={12} />
+              </button>
+            )}
+
+            {!!qContractId && (
+              <button
+                className="inline-flex items-center gap-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2.5 py-1 rounded-full"
+                onClick={() => removeFilter("contractId")}
+                title="Remover contrato"
+              >
+                <span>Contrato: {contractLabel}</span>
+                <X size={12} />
+              </button>
+            )}
+
+            {!!qStatus && (
+              <button
+                className="inline-flex items-center gap-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2.5 py-1 rounded-full"
+                onClick={() => removeFilter("status")}
+                title="Remover status"
+              >
+                <span>Status: {statusLabel[qStatus as keyof typeof statusLabel] ?? qStatus}</span>
+                <X size={12} />
+              </button>
+            )}
+
+            {!!qIssueFrom && (
+              <button
+                className="inline-flex items-center gap-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2.5 py-1 rounded-full"
+                onClick={() => removeFilter("issueFrom")}
+                title="Remover emissão de"
+              >
+                <span>Emissão de: {issueFromLabel}</span>
+                <X size={12} />
+              </button>
+            )}
+
+            {!!qIssueTo && (
+              <button
+                className="inline-flex items-center gap-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2.5 py-1 rounded-full"
+                onClick={() => removeFilter("issueTo")}
+                title="Remover emissão até"
+              >
+                <span>Emissão até: {issueToLabel}</span>
+                <X size={12} />
+              </button>
+            )}
+
+            {!!qOrderBy && (
+              <button
+                className="inline-flex items-center gap-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2.5 py-1 rounded-full"
+                onClick={() => removeFilter("orderBy")}
+                title="Remover campo de ordenação"
+              >
+                <span>Ordenar por: {orderByLabel}</span>
+                <X size={12} />
+              </button>
+            )}
+
+            {!!qOrder && (
+              <button
+                className="inline-flex items-center gap-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2.5 py-1 rounded-full"
+                onClick={() => removeFilter("order")}
+                title="Remover ordem"
+              >
+                <span>Ordem: {orderLabel}</span>
+                <X size={12} />
+              </button>
+            )}
+
+            <div className="grow" />
+            <button
+              className="text-xs text-blue-700 hover:underline"
+              onClick={clearFilters}
+              title="Limpar todos os filtros"
+            >
+              Limpar tudo
+            </button>
+          </div>
+        )}
+
         {/* Legenda de status */}
         <div className="mb-4 flex flex-wrap items-center gap-2 text-xs text-gray-600">
           <span className="inline-flex items-center gap-1">
-            <span className="inline-block h-2.5 w-2.5 rounded-full bg-amber-400" /> A
-            Receber
+            <span className="inline-block h-2.5 w-2.5 rounded-full bg-amber-400" /> A Receber
           </span>
           <span className="inline-flex items-center gap-1">
-            <span className="inline-block h-2.5 w-2.5 rounded-full bg-red-500" />{" "}
-            Atrasado
+            <span className="inline-block h-2.5 w-2.5 rounded-full bg-red-500" /> Atrasado
           </span>
           <span className="inline-flex items-center gap-1">
-            <span className="inline-block h-2.5 w-2.5 rounded-full bg-emerald-500" />{" "}
-            Recebido
+            <span className="inline-block h-2.5 w-2.5 rounded-full bg-emerald-500" /> Recebido
           </span>
           <span className="inline-flex items-center gap-1 text-gray-400 ml-2">
             <FileSearch size={14} />
@@ -681,14 +830,10 @@ export default function ReceivablesClient(props: Props) {
                   r.periodStart || r.periodEnd
                     ? [
                       r.periodStart
-                        ? format(new Date(r.periodStart), "dd/MM/yyyy", {
-                          locale: ptBR,
-                        })
+                        ? format(new Date(r.periodStart), "dd/MM/yyyy", { locale: ptBR })
                         : "—",
                       r.periodEnd
-                        ? format(new Date(r.periodEnd), "dd/MM/yyyy", {
-                          locale: ptBR,
-                        })
+                        ? format(new Date(r.periodEnd), "dd/MM/yyyy", { locale: ptBR })
                         : "—",
                     ].join(" → ")
                     : r.periodLabel || "—";
@@ -699,20 +844,13 @@ export default function ReceivablesClient(props: Props) {
 
                 const receivedInfo =
                   r.receivedAt &&
-                  `Recebido em ${format(new Date(r.receivedAt), "dd/MM/yyyy", {
-                    locale: ptBR,
-                  })}`;
+                  `Recebido em ${format(new Date(r.receivedAt), "dd/MM/yyyy", { locale: ptBR })}`;
 
                 const isBusy = processing.has(r.id);
 
                 return (
-                  <tr
-                    key={r.id}
-                    className="border-b hover:bg-gray-50 last:border-b-0"
-                  >
-                    <td className="p-3 text-gray-700">
-                      {r.contract?.code ?? "—"}
-                    </td>
+                  <tr key={r.id} className="border-b hover:bg-gray-50 last:border-b-0">
+                    <td className="p-3 text-gray-700">{r.contract?.code ?? "—"}</td>
                     <td className="p-3 text-gray-700">{r.noteNumber ?? "—"}</td>
                     <td className="p-3 text-gray-700">
                       <div className="flex items-center gap-1">

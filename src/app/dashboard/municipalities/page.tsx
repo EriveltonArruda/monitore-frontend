@@ -31,12 +31,11 @@ export default async function Page({
 
   const { data, total, page, totalPages, limit } = await fetchMunicipalities(sp);
 
-  const Client = MunicipalitiesClient as any;
-
+  // ✅ Ajuste: passar os nomes de props que o Client espera
   return (
-    <Client
-      initialMunicipalities={data}
-      totalMunicipalities={total}
+    <MunicipalitiesClient
+      initialRows={data}
+      total={total}
       page={page}
       totalPages={totalPages}
       limit={limit}

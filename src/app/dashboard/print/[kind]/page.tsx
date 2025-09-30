@@ -17,8 +17,8 @@ const aliases: Record<string, keyof typeof kinds> = {
   recebiveis: 'receivables',
   fornecedores: 'suppliers',
   contatos: 'contacts',
-  municipios: 'municipalities', // ✅ novo
-  orgaos: 'departments',       // ✅ novo
+  municipios: 'municipalities',
+  orgaos: 'departments',
 };
 
 function normalizeKind(k: string): keyof typeof kinds | undefined {
@@ -37,23 +37,44 @@ function coerceSearchParams(sp: SearchParamsObj): Record<string, string> {
   return out;
 }
 
-// Busca lista no backend com filtros (limit alto para impressão)
-async function fetchList(kind: keyof typeof kinds, searchParams: Record<string, string>) {
+// Monta os params respeitando o "whitelist" de filtros do config (se existir)
+function buildQueryParams(
+  kind: keyof typeof kinds,
+  searchParams: Record<string, string>
+) {
   const cfg = kinds[kind];
-  if (!cfg) return { rows: [], meta: { total: 0, page: 1, limit: 9999 } };
-
   const params = new URLSearchParams();
 
-  // Repassa todos filtros simples (exceto paginação local)
+  // chaves permitidas (se houver filters definidos no config)
+  const allowed = cfg.filters?.map(f => f.key);
+  const hasWhitelist = Array.isArray(allowed) && allowed.length > 0;
+
   for (const [k, v] of Object.entries(searchParams)) {
     if (v == null) continue;
     if (k === 'page' || k === 'limit') continue;
-    params.set(k, v);
+
+    // Se houver whitelist, só encaminha chaves permitidas
+    if (hasWhitelist) {
+      if (allowed!.includes(k)) params.set(k, v);
+    } else {
+      // Sem whitelist => legado: encaminha todos os filtros simples
+      params.set(k, v);
+    }
   }
 
   // Para impressão, sempre pega um lote grande
   params.set('page', '1');
   params.set('limit', '1000');
+
+  return params;
+}
+
+// Busca lista no backend com filtros
+async function fetchList(kind: keyof typeof kinds, searchParams: Record<string, string>) {
+  const cfg = kinds[kind];
+  if (!cfg) return { rows: [], meta: { total: 0, page: 1, limit: 9999 } };
+
+  const params = buildQueryParams(kind, searchParams);
 
   const res = await fetch(`${API_BASE}${cfg.endpoint}?${params.toString()}`, { cache: 'no-store' });
   const json = await res.json().catch(() => ({}));

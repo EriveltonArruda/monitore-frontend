@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -98,7 +98,7 @@ export function MovementsPageClient({
   const searchParams = useSearchParams();
   const pathname = usePathname();
 
-  // Filtros vindo da URL
+  // Filtros vindos da URL
   const [selectedType, setSelectedType] = useState(searchParams.get("type") || "");
   const [selectedProduct, setSelectedProduct] = useState(searchParams.get("productId") || "");
   const [selectedPeriod, setSelectedPeriod] = useState(searchParams.get("period") || "");
@@ -107,23 +107,69 @@ export function MovementsPageClient({
   // Atualiza a URL com filtros (inclui busca)
   useEffect(() => {
     const params = new URLSearchParams(searchParams.toString());
-    if (selectedType) params.set("type", selectedType); else params.delete("type");
-    if (selectedProduct) params.set("productId", selectedProduct); else params.delete("productId");
-    if (selectedPeriod) params.set("period", selectedPeriod); else params.delete("period");
-    if (searchTerm) params.set("search", searchTerm); else params.delete("search");
+    const setOrDel = (k: string, v: string) => (v ? params.set(k, v) : params.delete(k));
+
+    setOrDel("type", selectedType);
+    setOrDel("productId", selectedProduct);
+    setOrDel("period", selectedPeriod);
+    setOrDel("search", searchTerm);
+
     params.set("page", "1");
     const timer = setTimeout(() => {
       router.push(`${pathname}?${params.toString()}`);
-    }, 350);
+    }, 300);
     return () => clearTimeout(timer);
-    // eslint-disable-next-line
-  }, [selectedType, selectedProduct, selectedPeriod, searchTerm]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedType, selectedProduct, selectedPeriod, searchTerm, pathname, router]);
+
+  // Labels amigáveis p/ chips
+  const typeLabel = useMemo(() => {
+    if (!selectedType) return null;
+    return TYPE_OPTIONS.find(o => o.value === selectedType)?.label ?? selectedType;
+  }, [selectedType]);
+
+  const productLabel = useMemo(() => {
+    if (!selectedProduct) return null;
+    const p = products.find(pr => String(pr.id) === String(selectedProduct));
+    return p?.name ?? `Produto #${selectedProduct}`;
+  }, [selectedProduct, products]);
+
+  const periodLabel = useMemo(() => {
+    if (!selectedPeriod) return null;
+    return PERIOD_OPTIONS.find(o => o.value === selectedPeriod)?.label ?? selectedPeriod;
+  }, [selectedPeriod]);
+
+  const hasActiveFilters = !!(
+    (searchTerm && searchTerm.trim() !== "") ||
+    selectedType || selectedProduct || selectedPeriod
+  );
+
+  const clearAll = () => {
+    setSelectedType("");
+    setSelectedProduct("");
+    setSelectedPeriod("");
+    setSearchTerm("");
+    const params = new URLSearchParams(searchParams.toString());
+    ["type", "productId", "period", "search", "page"].forEach(k => params.delete(k));
+    params.set("page", "1");
+    router.push(`${pathname}?${params.toString()}`);
+  };
+
+  const removeFilter = (key: "type" | "productId" | "period" | "search") => {
+    if (key === "type") setSelectedType("");
+    if (key === "productId") setSelectedProduct("");
+    if (key === "period") setSelectedPeriod("");
+    if (key === "search") setSearchTerm("");
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete(key);
+    params.set("page", "1");
+    router.push(`${pathname}?${params.toString()}`);
+  };
 
   // Modais
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [deletingMovement, setDeletingMovement] = useState<Movement | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   // Detalhes
@@ -185,17 +231,12 @@ export function MovementsPageClient({
     if (selectedType) qs.set("type", selectedType);
     if (selectedProduct) qs.set("productId", selectedProduct);
     if (searchTerm) qs.set("search", searchTerm);
-
     const range = periodToRange(selectedPeriod);
     if (range) {
       qs.set("dateFrom", range.from);
       qs.set("dateTo", range.to);
     }
-
-    // alias "movimentacoes" mapeia para "stock-movements" na página de impressão
-    const url = `/dashboard/print/movimentacoes?${qs.toString()}`;
-    // abrir em nova aba para não perder a lista
-    window.open(url, "_blank");
+    window.open(`/dashboard/print/movimentacoes?${qs.toString()}`, "_blank");
   };
 
   // Paginação
@@ -274,7 +315,7 @@ export function MovementsPageClient({
       </div>
 
       {/* Filtros */}
-      <div className="bg-white p-4 rounded-xl shadow-sm mb-8 flex items-center gap-4">
+      <div className="bg-white p-4 rounded-xl shadow-sm mb-3 flex items-center gap-4">
         <Filter size={18} className="text-gray-500" />
         <select title='Tipo de Movimentação'
           value={selectedType}
@@ -311,6 +352,66 @@ export function MovementsPageClient({
           />
         </div>
       </div>
+
+      {/* Chips + Limpar tudo */}
+      {hasActiveFilters && (
+        <div className="bg-white p-3 rounded-xl shadow-sm mb-6 flex flex-wrap items-center gap-2">
+          <span className="text-xs text-gray-500 mr-1">Filtros ativos:</span>
+
+          {searchTerm.trim() !== "" && (
+            <button
+              className="inline-flex items-center gap-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2.5 py-1 rounded-full"
+              onClick={() => removeFilter("search")}
+              title={`Remover: "${searchTerm}"`}
+            >
+              <span>Busca: “{searchTerm}”</span>
+              <X size={12} />
+            </button>
+          )}
+
+          {selectedType && (
+            <button
+              className="inline-flex items-center gap-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2.5 py-1 rounded-full"
+              onClick={() => removeFilter("type")}
+              title="Remover filtro de tipo"
+            >
+              <span>Tipo: {typeLabel}</span>
+              <X size={12} />
+            </button>
+          )}
+
+          {selectedProduct && (
+            <button
+              className="inline-flex items-center gap-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2.5 py-1 rounded-full"
+              onClick={() => removeFilter("productId")}
+              title="Remover filtro de produto"
+            >
+              <span>Produto: {productLabel}</span>
+              <X size={12} />
+            </button>
+          )}
+
+          {selectedPeriod && (
+            <button
+              className="inline-flex items-center gap-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2.5 py-1 rounded-full"
+              onClick={() => removeFilter("period")}
+              title="Remover filtro de período"
+            >
+              <span>Período: {periodLabel}</span>
+              <X size={12} />
+            </button>
+          )}
+
+          <div className="grow" />
+          <button
+            className="text-xs text-blue-700 hover:underline"
+            onClick={clearAll}
+            title="Limpar todos os filtros"
+          >
+            Limpar tudo
+          </button>
+        </div>
+      )}
 
       {/* Histórico de Movimentações */}
       <div className="bg-white rounded-xl shadow-sm">

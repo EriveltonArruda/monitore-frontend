@@ -23,6 +23,7 @@ type Formatters = {
 export function PrintLayout({
   title,
   subtitle,
+  subtitleChips, // ✅ NOVO (opcional)
   columns,
   rows,
   meta,
@@ -30,6 +31,7 @@ export function PrintLayout({
 }: {
   title: string;
   subtitle?: string | null;
+  subtitleChips?: string[]; // ✅ NOVO (opcional)
   columns: Col[];
   rows: any[];
   meta: Meta;
@@ -47,12 +49,31 @@ export function PrintLayout({
       {/* Cabeçalho */}
       <div className="mb-4 border-b pb-4">
         <div className="text-lg font-bold">{title}</div>
-        {subtitle ? <div className="text-sm text-gray-600 mt-1">{subtitle}</div> : null}
-        <div className="text-xs text-gray-500 mt-1">
+
+        {subtitle ? (
+          <div className="text-sm text-gray-600 mt-1">{subtitle}</div>
+        ) : null}
+
+        {/* Chips de filtros (opcional) */}
+        {Array.isArray(subtitleChips) && subtitleChips.length > 0 && (
+          <div className="flex flex-wrap gap-2 mt-2">
+            {subtitleChips.map((chip, i) => (
+              <span
+                key={`${chip}-${i}`}
+                className="px-2 py-0.5 text-xs bg-gray-100 border border-gray-200 rounded-full text-gray-700"
+              >
+                {chip}
+              </span>
+            ))}
+          </div>
+        )}
+
+        <div className="text-xs text-gray-500 mt-2">
           Gerado em {new Date().toLocaleString('pt-BR')}
           {' · '}
           Registros: <b>{meta?.total ?? rows.length}</b>
         </div>
+
         <div className="mt-2 no-print">
           <button
             onClick={() => window.print()}

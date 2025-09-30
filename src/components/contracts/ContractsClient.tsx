@@ -1,4 +1,4 @@
-// src/components/contracts/ContractsClient.tsx 
+// src/components/contracts/ContractsClient.tsx
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
@@ -11,7 +11,8 @@ import {
   Clock,
   Info,
   FileDown,
-  Printer, // ✅ já estava importado para PDF individual, reusamos ícone
+  Printer,
+  X,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -184,12 +185,47 @@ export default function ContractsClient(props: Props) {
   const handleOrder = (e: React.ChangeEvent<HTMLSelectElement>) =>
     setParam("order", e.target.value);
 
-  const clearFilters = () => {
-    const keep: Array<[string, string]> = []; // se quiser manter algo, adicione aqui
-    const params = new URLSearchParams(keep);
+  // ===== Chips / Limpar tudo =====
+  const removeFilter = (key: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete(key);
+    // dependência: remover órgão se tirar município
+    if (key === "municipalityId") params.delete("departmentId");
     params.set("page", "1");
     router.push(`?${params.toString()}`);
   };
+
+  const clearFilters = () => {
+    const params = new URLSearchParams();
+    params.set("page", "1");
+    router.push(`?${params.toString()}`);
+  };
+
+  const municipalityLabel = useMemo(() => {
+    if (!qMunicipalityId) return null;
+    const m = municipalities.find((x) => String(x.id) === qMunicipalityId);
+    return m?.name || `Município #${qMunicipalityId}`;
+  }, [qMunicipalityId, municipalities]);
+
+  const departmentLabel = useMemo(() => {
+    if (!qDepartmentId) return null;
+    const d = departments.find((x) => String(x.id) === qDepartmentId);
+    return d?.name || `Órgão #${qDepartmentId}`;
+  }, [qDepartmentId, departments]);
+
+  const endFromLabel = qEndFrom ? format(new Date(qEndFrom), "dd/MM/yyyy") : null;
+  const endToLabel = qEndTo ? format(new Date(qEndTo), "dd/MM/yyyy") : null;
+  const orderLabel = qOrder === "desc" ? "Mais recentes → antigos" : "Mais antigos → recentes";
+
+  const hasActive =
+    !!qSearch ||
+    !!qMunicipalityId ||
+    !!qDepartmentId ||
+    !!qEndFrom ||
+    !!qEndTo ||
+    !!qDueInDays ||
+    qExpiredOnly === "true" ||
+    !!qOrder;
 
   const contracts = useMemo(() => initialContracts, [initialContracts]);
 
@@ -268,6 +304,7 @@ export default function ContractsClient(props: Props) {
     if (qDueInDays) qs.set("dueInDays", qDueInDays);
     if (qExpiredOnly) qs.set("expiredOnly", qExpiredOnly);
     if (qOrder) qs.set("order", qOrder);
+    // alias 'contratos' → 'contracts' já existe no [kind]/page.tsx
     router.push(`/dashboard/print/contratos?${qs.toString()}`);
   };
 
@@ -277,6 +314,7 @@ export default function ContractsClient(props: Props) {
     : undefined;
   const presetDepartmentId = qDepartmentId ? Number(qDepartmentId) : undefined;
 
+  // ===== Render =====
   return (
     <>
       {/* Modal de Form */}
@@ -326,7 +364,7 @@ export default function ContractsClient(props: Props) {
                 <span>Imprimir</span>
               </button>
 
-              {/* PDF direto do backend (mantido, se quiser) */}
+              {/* PDF direto do backend */}
               <button
                 onClick={exportListPdf}
                 className="border text-gray-700 hover:bg-gray-50 font-medium py-2 px-3 rounded-lg flex items-center gap-2"
@@ -466,23 +504,123 @@ export default function ContractsClient(props: Props) {
           </div>
         </div>
 
+        {/* Chips dos filtros ativos */}
+        {hasActive && (
+          <div className="bg-white p-3 rounded-xl shadow-sm mb-6 flex flex-wrap items-center gap-2">
+            <span className="text-xs text-gray-500 mr-1">Filtros ativos:</span>
+
+            {!!qSearch && (
+              <button
+                className="inline-flex items-center gap-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2.5 py-1 rounded-full"
+                onClick={() => removeFilter("search")}
+                title={`Remover busca: “${qSearch}”`}
+              >
+                <span>Busca: “{qSearch}”</span>
+                <X size={12} />
+              </button>
+            )}
+
+            {!!qMunicipalityId && (
+              <button
+                className="inline-flex items-center gap-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2.5 py-1 rounded-full"
+                onClick={() => removeFilter("municipalityId")}
+                title="Remover município"
+              >
+                <span>Município: {municipalityLabel}</span>
+                <X size={12} />
+              </button>
+            )}
+
+            {!!qDepartmentId && (
+              <button
+                className="inline-flex items-center gap-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2.5 py-1 rounded-full"
+                onClick={() => removeFilter("departmentId")}
+                title="Remover órgão"
+              >
+                <span>Órgão: {departmentLabel}</span>
+                <X size={12} />
+              </button>
+            )}
+
+            {!!qEndFrom && (
+              <button
+                className="inline-flex items-center gap-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2.5 py-1 rounded-full"
+                onClick={() => removeFilter("endFrom")}
+                title="Remover data início (fim de)"
+              >
+                <span>Fim de: {endFromLabel}</span>
+                <X size={12} />
+              </button>
+            )}
+
+            {!!qEndTo && (
+              <button
+                className="inline-flex items-center gap-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2.5 py-1 rounded-full"
+                onClick={() => removeFilter("endTo")}
+                title="Remover data final (fim até)"
+              >
+                <span>Fim até: {endToLabel}</span>
+                <X size={12} />
+              </button>
+            )}
+
+            {!!qDueInDays && (
+              <button
+                className="inline-flex items-center gap-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2.5 py-1 rounded-full"
+                onClick={() => removeFilter("dueInDays")}
+                title="Remover 'vencendo em X dias'"
+              >
+                <span>Vencendo em: {qDueInDays}d</span>
+                <X size={12} />
+              </button>
+            )}
+
+            {qExpiredOnly === "true" && (
+              <button
+                className="inline-flex items-center gap-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2.5 py-1 rounded-full"
+                onClick={() => removeFilter("expiredOnly")}
+                title="Remover 'apenas expirados'"
+              >
+                <span>Apenas expirados</span>
+                <X size={12} />
+              </button>
+            )}
+
+            {!!qOrder && (
+              <button
+                className="inline-flex items-center gap-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2.5 py-1 rounded-full"
+                onClick={() => removeFilter("order")}
+                title="Remover ordenação"
+              >
+                <span>Ordenação: {orderLabel}</span>
+                <X size={12} />
+              </button>
+            )}
+
+            <div className="grow" />
+            <button
+              className="text-xs text-blue-700 hover:underline"
+              onClick={clearFilters}
+              title="Limpar todos os filtros"
+            >
+              Limpar tudo
+            </button>
+          </div>
+        )}
+
         {/* Legenda dos alertas */}
         <div className="mb-4 flex flex-wrap items-center gap-2 text-xs text-gray-600">
           <span className="inline-flex items-center gap-1">
-            <span className="inline-block h-2.5 w-2.5 rounded-full bg-emerald-500" />{" "}
-            D-30
+            <span className="inline-block h-2.5 w-2.5 rounded-full bg-emerald-500" /> D-30
           </span>
           <span className="inline-flex items-center gap-1">
-            <span className="inline-block h-2.5 w-2.5 rounded-full bg-orange-500" />{" "}
-            D-7
+            <span className="inline-block h-2.5 w-2.5 rounded-full bg-orange-500" /> D-7
           </span>
           <span className="inline-flex items-center gap-1">
-            <span className="inline-block h-2.5 w-2.5 rounded-full bg-amber-600" />{" "}
-            HOJE
+            <span className="inline-block h-2.5 w-2.5 rounded-full bg-amber-600" /> HOJE
           </span>
           <span className="inline-flex items-center gap-1">
-            <span className="inline-block h-2.5 w-2.5 rounded-full bg-red-600" />{" "}
-            EXPIRADO
+            <span className="inline-block h-2.5 w-2.5 rounded-full bg-red-600" /> EXPIRADO
           </span>
           <span className="inline-flex items-center gap-1 text-gray-400 ml-2">
             <Info size={14} />
@@ -516,17 +654,10 @@ export default function ContractsClient(props: Props) {
                 ].join(" → ");
 
                 return (
-                  <tr
-                    key={c.id}
-                    className="border-b hover:bg-gray-50 last:border-b-0"
-                  >
+                  <tr key={c.id} className="border-b hover:bg-gray-50 last:border-b-0">
                     <td className="p-3 font-medium text-gray-800">{c.code}</td>
-                    <td className="p-3 text-gray-700">
-                      {c.municipality?.name ?? "—"}
-                    </td>
-                    <td className="p-3 text-gray-700">
-                      {c.department?.name ?? "—"}
-                    </td>
+                    <td className="p-3 text-gray-700">{c.municipality?.name ?? "—"}</td>
+                    <td className="p-3 text-gray-700">{c.department?.name ?? "—"}</td>
                     <td className="p-3 text-gray-700">
                       <div className="flex items-center gap-1">
                         <Calendar size={16} className="text-gray-400" />
@@ -544,9 +675,7 @@ export default function ContractsClient(props: Props) {
                           <Clock size={12} />
                           {c.alertTag}
                           {typeof c.daysToEnd === "number" && (
-                            <span className="opacity-80 ml-1">
-                              ({c.daysToEnd}d)
-                            </span>
+                            <span className="opacity-80 ml-1">({c.daysToEnd}d)</span>
                           )}
                         </span>
                       )}

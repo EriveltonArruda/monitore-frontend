@@ -1,9 +1,8 @@
-// src/app/dashboard/components/departments/DepartmentsClient.tsx
 "use client";
 
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { PlusCircle, Pencil, Trash2, Printer } from 'lucide-react'; // ✅ add Printer
+import { PlusCircle, Pencil, Trash2, Printer, X } from 'lucide-react';
 import DepartmentFormModal from './DepartmentFormModal';
 import { DeleteConfirmationModal } from '@/components/DeleteConfirmationModal';
 import { Pagination } from '../Pagination';
@@ -38,7 +37,7 @@ export default function DepartmentsClient({
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const [rows, setRows] = useState<Department[]>(initialDepartments);
+  const [rows] = useState<Department[]>(initialDepartments);
 
   // modal de form
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -47,6 +46,7 @@ export default function DepartmentsClient({
   // modal delete
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState<Department | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // filtros (querystring)
   const qSearch = searchParams.get('search') || '';
@@ -63,6 +63,19 @@ export default function DepartmentsClient({
     router.push(`?${params.toString()}`);
   };
 
+  const clearFilters = () => {
+    const params = new URLSearchParams();
+    params.set('page', '1');
+    router.push(`?${params.toString()}`);
+  };
+
+  const removeFilter = (key: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete(key);
+    params.set('page', '1');
+    router.push(`?${params.toString()}`);
+  };
+
   // handlers dos filtros
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => setParam('search', e.target.value);
   const handleMunicipality = (e: React.ChangeEvent<HTMLSelectElement>) => setParam('municipalityId', e.target.value);
@@ -72,7 +85,7 @@ export default function DepartmentsClient({
   const openEdit = (d: Department) => { setEditing(d); setIsFormOpen(true); };
   const confirmDelete = (d: Department) => { setDeleting(d); setIsDeleteOpen(true); };
 
-  // ✅ imprimir com filtros atuais
+  // imprimir com filtros atuais
   const handlePrint = () => {
     const qs = new URLSearchParams();
     if (qSearch) qs.set('search', qSearch);
@@ -97,16 +110,19 @@ export default function DepartmentsClient({
           itemName={`${deleting.name} – ${deleting.municipality?.name ?? ''}`}
           onConfirm={async () => {
             try {
+              setIsDeleting(true);
               await fetch(`${API_BASE}/departments/${deleting.id}`, { method: 'DELETE' });
               setIsDeleteOpen(false);
               setDeleting(null);
               router.refresh();
             } catch (e) {
               alert('Erro ao excluir órgão/secretaria.');
+            } finally {
+              setIsDeleting(false);
             }
           }}
           onClose={() => { setIsDeleteOpen(false); setDeleting(null); }}
-          isDeleting={false}
+          isDeleting={isDeleting}
         />
       )}
 
@@ -118,7 +134,6 @@ export default function DepartmentsClient({
             <p className="text-sm text-gray-500">Vinculados a cada município</p>
           </div>
           <div className="flex items-center gap-2">
-            {/* ✅ Botão Imprimir */}
             <button
               onClick={handlePrint}
               className="border text-gray-700 hover:bg-gray-50 font-medium py-2 px-3 rounded-lg flex items-center gap-2"
@@ -139,7 +154,7 @@ export default function DepartmentsClient({
         </div>
 
         {/* Filtros */}
-        <div className="bg-white p-4 rounded-xl shadow-sm mb-4">
+        <div className="bg-white p-4 rounded-xl shadow-sm mb-3">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div>
               <label className="block text-xs text-gray-500 mb-1">Buscar por nome</label>
@@ -154,7 +169,8 @@ export default function DepartmentsClient({
 
             <div>
               <label className="block text-xs text-gray-500 mb-1">Município</label>
-              <select title="Município"
+              <select
+                title="Município"
                 value={qMunicipalityId}
                 onChange={handleMunicipality}
                 className="w-full border rounded-md px-3 py-2 bg-white"
@@ -167,6 +183,44 @@ export default function DepartmentsClient({
             </div>
           </div>
         </div>
+
+        {/* Chips de filtros ativos + Limpar tudo */}
+        {(qSearch || qMunicipalityId) && (
+          <div className="bg-white p-3 rounded-xl shadow-sm mb-6 flex flex-wrap items-center gap-2">
+            <span className="text-xs text-gray-500 mr-1">Filtros ativos:</span>
+
+            {qSearch && (
+              <button
+                className="inline-flex items-center gap-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2.5 py-1 rounded-full"
+                onClick={() => removeFilter('search')}
+                title={`Remover busca: “${qSearch}”`}
+              >
+                <span>Busca: “{qSearch}”</span>
+                <X size={12} />
+              </button>
+            )}
+
+            {qMunicipalityId && (
+              <button
+                className="inline-flex items-center gap-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2.5 py-1 rounded-full"
+                onClick={() => removeFilter('municipalityId')}
+                title="Remover município"
+              >
+                <span>Município: {municipalities.find(m => String(m.id) === qMunicipalityId)?.name ?? qMunicipalityId}</span>
+                <X size={12} />
+              </button>
+            )}
+
+            <div className="grow" />
+            <button
+              className="text-xs text-blue-700 hover:underline"
+              onClick={clearFilters}
+              title="Limpar todos os filtros"
+            >
+              Limpar tudo
+            </button>
+          </div>
+        )}
 
         {/* Tabela */}
         <div className="bg-white p-4 rounded-xl shadow-sm">
@@ -214,28 +268,7 @@ export default function DepartmentsClient({
           </table>
         </div>
 
-        {/* Paginação simples */}
-        <div className="flex items-center justify-between mt-4">
-          <span className="text-sm text-gray-500">
-            Total: {total}
-          </span>
-          <div className="flex gap-2">
-            {Array.from({ length: totalPages }).map((_, i) => {
-              const p = i + 1;
-              const params = new URLSearchParams(searchParams.toString());
-              params.set('page', String(p));
-              return (
-                <button
-                  key={p}
-                  onClick={() => router.push(`?${params.toString()}`)}
-                  className={`px-3 py-1 rounded border ${p === currentPage ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700'}`}
-                >
-                  {p}
-                </button>
-              );
-            })}
-          </div>
-        </div>
+        {/* Paginação */}
         <Pagination currentPage={currentPage} totalPages={totalPages} />
       </div>
     </>

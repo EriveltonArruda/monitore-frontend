@@ -19,7 +19,7 @@ async function fetchDepartments(sp: SearchParams) {
 
   const res = await fetch(`${API_BASE}/departments?${params.toString()}`, { cache: 'no-store' });
   if (!res.ok) throw new Error('Falha ao carregar órgãos/secretarias');
-  return res.json();
+  return res.json(); // { data, total, page, totalPages, limit }
 }
 
 async function fetchMunicipalities() {
@@ -40,13 +40,10 @@ export default async function Page({
     fetchMunicipalities(),
   ]);
 
-  // ⬇️ Hack seguro pra destravar TypeScript enquanto alinhamos as Props do Client
-  const Client = DepartmentsClient as any;
-
   return (
-    <Client
+    <DepartmentsClient
       initialDepartments={data}
-      totalDepartments={total}
+      total={total}
       page={page}
       totalPages={totalPages}
       limit={limit}

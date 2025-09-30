@@ -36,7 +36,7 @@ export default async function SuppliersManagementPage({
   params.append('page', String(page));
   params.append('limit', '10');
 
-  // Inclui o parâmetro search, se existir!
+  // Inclui o parâmetro search, se existir
   const search = Array.isArray(resolvedParams.search)
     ? resolvedParams.search[0]
     : resolvedParams.search || '';

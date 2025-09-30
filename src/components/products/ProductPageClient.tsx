@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { PlusCircle, Search, Pencil, Trash2, Eye, FileDown, Printer } from 'lucide-react';
+import { PlusCircle, Search, Pencil, Trash2, Eye, FileDown, Printer, X } from 'lucide-react';
 import { ProductFormModal } from './ProductFormModal';
 import { DeleteConfirmationModal } from '../DeleteConfirmationModal';
 import { Pagination } from '../Pagination';
@@ -14,7 +14,7 @@ async function download(url: string, filename: string) {
   const res = await fetch(url);
   if (!res.ok) {
     let msg = 'Falha ao baixar arquivo';
-    try { msg = (await res.text()) || msg; } catch { }
+    try { msg = (await res.text()) || msg; } catch { /* noop */ }
     throw new Error(msg);
   }
   const blob = await res.blob();
@@ -48,7 +48,7 @@ function ProductImageModal({ product, onClose }: { product: Product | null, onCl
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/70"
-      onClick={onClose} // fecha ao clicar fora
+      onClick={onClose}
     >
       <div className="bg-white rounded-xl shadow-lg max-w-xs w-full flex flex-col items-center relative p-6" onClick={stop}>
         <button
@@ -83,7 +83,6 @@ type Product = {
   sku: string | null;
   stockQuantity: number;
   minStockQuantity: number;
-  // salePrice removido do sistema
   status: string;
   category: Category | null;
   supplier: Supplier | null;
@@ -110,30 +109,83 @@ export function ProductPageClient({ products, totalProducts, categories, supplie
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
+  // estado derivado da URL para filtros
   const [searchTerm, setSearchTerm] = useState(searchParams.get('search') || '');
   const [selectedCategory, setSelectedCategory] = useState(searchParams.get('categoryId') || '');
   const [selectedStatus, setSelectedStatus] = useState(searchParams.get('status') || '');
   const [selectedStockLevel, setSelectedStockLevel] = useState(searchParams.get('stockLevel') || '');
 
+  // aplica filtros na URL (debounce) e reseta page=1
   useEffect(() => {
     const params = new URLSearchParams(searchParams.toString());
-    const updateParam = (key: string, value: string) => {
-      if (value) params.set(key, value);
+
+    const setOrDelete = (key: string, value: string) => {
+      if (value && value.trim() !== '') params.set(key, value);
       else params.delete(key);
     };
 
-    updateParam('search', searchTerm);
-    updateParam('categoryId', selectedCategory);
-    updateParam('status', selectedStatus);
-    updateParam('stockLevel', selectedStockLevel);
+    setOrDelete('search', searchTerm);
+    setOrDelete('categoryId', selectedCategory);
+    setOrDelete('status', selectedStatus);
+    setOrDelete('stockLevel', selectedStockLevel);
+
     params.set('page', '1');
 
-    const debounceTimer = setTimeout(() => {
+    const t = setTimeout(() => {
       router.push(`${pathname}?${params.toString()}`);
-    }, 300);
+    }, 250);
 
-    return () => clearTimeout(debounceTimer);
-  }, [searchTerm, selectedCategory, selectedStatus, selectedStockLevel, pathname, router, searchParams]);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchTerm, selectedCategory, selectedStatus, selectedStockLevel, pathname, router]);
+
+  // chips: labels amigáveis
+  const categoryLabel = useMemo(() => {
+    if (!selectedCategory) return null;
+    const found = categories.find(c => String(c.id) === String(selectedCategory));
+    return found?.name ?? selectedCategory;
+  }, [selectedCategory, categories]);
+
+  const statusLabel = useMemo(() => {
+    if (!selectedStatus) return null;
+    return selectedStatus === 'ATIVO' ? 'Status: Ativo' : selectedStatus === 'INATIVO' ? 'Status: Inativo' : `Status: ${selectedStatus}`;
+  }, [selectedStatus]);
+
+  const stockLevelLabel = useMemo(() => {
+    if (!selectedStockLevel) return null;
+    return selectedStockLevel === 'low' ? 'Estoque: Baixo' :
+      selectedStockLevel === 'normal' ? 'Estoque: Normal' :
+        `Estoque: ${selectedStockLevel}`;
+  }, [selectedStockLevel]);
+
+  const hasActiveFilters = !!(
+    (searchTerm && searchTerm.trim() !== '') ||
+    selectedCategory ||
+    selectedStatus ||
+    selectedStockLevel
+  );
+
+  const clearAll = () => {
+    setSearchTerm('');
+    setSelectedCategory('');
+    setSelectedStatus('');
+    setSelectedStockLevel('');
+    const params = new URLSearchParams(searchParams.toString());
+    ['search', 'categoryId', 'status', 'stockLevel'].forEach(k => params.delete(k));
+    params.set('page', '1');
+    router.push(`${pathname}?${params.toString()}`);
+  };
+
+  const removeFilter = (key: 'search' | 'categoryId' | 'status' | 'stockLevel') => {
+    if (key === 'search') setSearchTerm('');
+    if (key === 'categoryId') setSelectedCategory('');
+    if (key === 'status') setSelectedStatus('');
+    if (key === 'stockLevel') setSelectedStockLevel('');
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete(key);
+    params.set('page', '1');
+    router.push(`${pathname}?${params.toString()}`);
+  };
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -166,7 +218,7 @@ export function ProductPageClient({ products, totalProducts, categories, supplie
           if (data && data.message) {
             message = Array.isArray(data.message) ? data.message.join("\n") : data.message;
           }
-        } catch { }
+        } catch { /* noop */ }
         throw new Error(message);
       }
 
@@ -188,7 +240,7 @@ export function ProductPageClient({ products, totalProducts, categories, supplie
   const totalPages = Math.ceil(totalProducts / ITEMS_PER_PAGE);
   const currentPage = Number(searchParams.get('page')) || 1;
 
-  // ====== handlers de export ======
+  // ====== exportações ======
   const handleExportPdf = async () => {
     try {
       await download(`${API_BASE}/products/export-pdf`, tsFilename('produtos', 'pdf'));
@@ -204,14 +256,13 @@ export function ProductPageClient({ products, totalProducts, categories, supplie
     }
   };
 
-  // ====== navegação para impressão ======
+  // ====== impressão ======
   const handleGoToPrint = () => {
     const qs = new URLSearchParams();
     if (searchTerm) qs.set('search', searchTerm);
     if (selectedCategory) qs.set('categoryId', selectedCategory);
     if (selectedStatus) qs.set('status', selectedStatus);
     if (selectedStockLevel) qs.set('stockLevel', selectedStockLevel);
-    // a página de impressão já força page=1&limit=1000 internamente
     router.push(`/dashboard/print/produtos?${qs.toString()}`);
   };
 
@@ -248,7 +299,7 @@ export function ProductPageClient({ products, totalProducts, categories, supplie
             <p className="text-sm text-gray-500">Gerencie todos os produtos do seu estoque</p>
           </div>
           <div className="flex items-center gap-2">
-            {/* Imprimir (navega para tela de impressão) */}
+            {/* Imprimir */}
             <button
               onClick={handleGoToPrint}
               className="border text-gray-700 hover:bg-gray-50 font-medium py-2 px-3 rounded-lg flex items-center gap-2"
@@ -286,7 +337,7 @@ export function ProductPageClient({ products, totalProducts, categories, supplie
         </div>
 
         {/* Barra de Filtros */}
-        <div className="bg-white p-4 rounded-xl shadow-sm mb-8 flex items-center gap-4">
+        <div className="bg-white p-4 rounded-xl shadow-sm mb-3 flex items-center gap-4">
           <div className="relative flex-grow">
             <Search size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
@@ -327,6 +378,66 @@ export function ProductPageClient({ products, totalProducts, categories, supplie
             <option value="normal">Estoque Normal</option>
           </select>
         </div>
+
+        {/* Chips dos filtros ativos + Limpar tudo */}
+        {hasActiveFilters && (
+          <div className="bg-white p-3 rounded-xl shadow-sm mb-6 flex flex-wrap items-center gap-2">
+            <span className="text-xs text-gray-500 mr-1">Filtros ativos:</span>
+
+            {searchTerm?.trim() !== '' && (
+              <button
+                className="inline-flex items-center gap-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2.5 py-1 rounded-full"
+                onClick={() => removeFilter('search')}
+                title={`Remover: "${searchTerm}"`}
+              >
+                <span>Busca: “{searchTerm}”</span>
+                <X size={12} />
+              </button>
+            )}
+
+            {selectedCategory && (
+              <button
+                className="inline-flex items-center gap-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2.5 py-1 rounded-full"
+                onClick={() => removeFilter('categoryId')}
+                title="Remover filtro de categoria"
+              >
+                <span>Categoria: {categoryLabel}</span>
+                <X size={12} />
+              </button>
+            )}
+
+            {selectedStatus && (
+              <button
+                className="inline-flex items-center gap-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2.5 py-1 rounded-full"
+                onClick={() => removeFilter('status')}
+                title="Remover filtro de status"
+              >
+                <span>{statusLabel}</span>
+                <X size={12} />
+              </button>
+            )}
+
+            {selectedStockLevel && (
+              <button
+                className="inline-flex items-center gap-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2.5 py-1 rounded-full"
+                onClick={() => removeFilter('stockLevel')}
+                title="Remover filtro de estoque"
+              >
+                <span>{stockLevelLabel}</span>
+                <X size={12} />
+              </button>
+            )}
+
+            <div className="grow" />
+            <button
+              className="text-xs text-blue-700 hover:underline"
+              onClick={clearAll}
+              title="Limpar todos os filtros"
+            >
+              Limpar tudo
+            </button>
+          </div>
+        )}
 
         {/* Tabela de Produtos */}
         <div className="bg-white rounded-xl shadow-sm">
@@ -382,8 +493,12 @@ export function ProductPageClient({ products, totalProducts, categories, supplie
                         >
                           <Eye size={18} />
                         </button>
-                        <button onClick={() => handleOpenEditModal(product)} className="text-gray-400 hover:text-blue-600"><Pencil size={18} /></button>
-                        <button onClick={() => handleOpenDeleteModal(product)} className="text-gray-400 hover:text-red-600"><Trash2 size={18} /></button>
+                        <button onClick={() => handleOpenEditModal(product)} className="text-gray-400 hover:text-blue-600" title="Editar">
+                          <Pencil size={18} />
+                        </button>
+                        <button onClick={() => handleOpenDeleteModal(product)} className="text-gray-400 hover:text-red-600" title="Excluir">
+                          <Trash2 size={18} />
+                        </button>
                       </div>
                     </td>
                   </tr>

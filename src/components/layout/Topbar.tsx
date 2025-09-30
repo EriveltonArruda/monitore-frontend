@@ -4,16 +4,16 @@
 import React, { useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Bell, Clock, Search } from "lucide-react";
+import { Bell, Clock, Search, X, Printer } from "lucide-react";
 
 type NotificationCounts = {
-  apOverdue?: number;     // Contas a Pagar vencidas
-  apDue3?: number;        // Contas a Pagar vence em <= 3 dias
-  apDue7?: number;        // Contas a Pagar vence em <= 7 dias
-  contractsD30?: number;  // Contratos D-30
-  contractsD7?: number;   // Contratos D-7
-  contractsToday?: number;// Contratos HOJE
-  receivablesLate?: number; // Recebíveis atrasados
+  apOverdue?: number;
+  apDue3?: number;
+  apDue7?: number;
+  contractsD30?: number;
+  contractsD7?: number;
+  contractsToday?: number;
+  receivablesLate?: number;
 };
 
 type TopbarProps = {
@@ -33,6 +33,33 @@ type TopbarProps = {
   showNotifications?: boolean;
   /** Contadores opcionais para o dropdown do sino */
   notifications?: NotificationCounts;
+
+  /* ========= NOVO: filtros avançados ========= */
+
+  /**
+   * Chips prontos para exibir (ex.: ["Status: Ativo", "Período: 01/01 a 31/01"]).
+   * Se vazio/ausente, nada é exibido.
+   */
+  filterChips?: string[];
+
+  /**
+   * Caminho de impressão (ex.: "/dashboard/print/produtos").
+   * Se informado, mostra um botão "Imprimir" que abre este caminho com os filtros atuais anexados.
+   */
+  printPath?: string;
+
+  /**
+   * Chaves que devem ser preservadas quando clicar em "Limpar filtros"
+   * (ex.: ["module"] para manter um contexto).
+   * Por padrão, nada é preservado; a página volta para ?page=1 sem outros filtros.
+   */
+  preserveKeys?: string[];
+
+  /**
+   * Ocultar/mostrar botão "Limpar filtros".
+   * Por padrão, aparece se houver chips OU campo de busca preenchido.
+   */
+  showClearButton?: boolean;
 };
 
 export default function Topbar({
@@ -45,6 +72,12 @@ export default function Topbar({
   className = "",
   showNotifications = true,
   notifications,
+
+  // novos
+  filterChips,
+  printPath,
+  preserveKeys = [],
+  showClearButton,
 }: TopbarProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -61,6 +94,33 @@ export default function Topbar({
     params.set("page", "1");
     router.push(`?${params.toString()}`);
   };
+
+  // Botão "Limpar filtros"
+  const hasChips = Array.isArray(filterChips) && filterChips.length > 0;
+  const hasSearch = withSearch && !!searchValue;
+  const shouldShowClear =
+    typeof showClearButton === "boolean" ? showClearButton : hasChips || hasSearch;
+
+  const clearAll = () => {
+    const params = new URLSearchParams(searchParams.toString());
+    // remove tudo exceto as chaves preservadas
+    for (const key of Array.from(params.keys())) {
+      if (!preserveKeys.includes(key)) params.delete(key);
+    }
+    // garante que page volte a 1
+    params.set("page", "1");
+    router.push(`?${params.toString()}`);
+  };
+
+  // URL de imprimir com filtros atuais
+  const printHref = (() => {
+    if (!printPath) return null;
+    const params = new URLSearchParams(searchParams.toString());
+    // não precisamos de page/limit no PDF, mas manter não quebra nada; se quiser filtrar:
+    // params.delete('page'); params.delete('limit');
+    const qs = params.toString();
+    return qs ? `${printPath}?${qs}` : printPath;
+  })();
 
   // Sanitize + total
   const counts = useMemo(() => {
@@ -88,9 +148,36 @@ export default function Topbar({
 
   return (
     <div className={`flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6 ${className}`}>
-      <div>
-        <h1 className="text-3xl font-bold text-gray-800">{title}</h1>
+      <div className="min-w-0">
+        <h1 className="text-3xl font-bold text-gray-800 truncate">{title}</h1>
         {subtitle && <p className="text-sm text-gray-500">{subtitle}</p>}
+
+        {/* Chips visuais de filtros (opcional) */}
+        {hasChips && (
+          <div className="flex flex-wrap items-center gap-2 mt-2">
+            {filterChips!.map((c, i) => (
+              <span
+                key={`${c}-${i}`}
+                className="px-2 py-0.5 text-xs bg-gray-100 border border-gray-200 rounded-full text-gray-700"
+                title={c}
+              >
+                {c}
+              </span>
+            ))}
+
+            {shouldShowClear && (
+              <button
+                type="button"
+                onClick={clearAll}
+                className="inline-flex items-center gap-1 text-xs text-gray-600 hover:text-gray-800"
+                title="Limpar todos os filtros"
+              >
+                <X size={12} />
+                Limpar filtros
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="flex w-full sm:w-auto items-center gap-2">
@@ -105,6 +192,31 @@ export default function Topbar({
               className="w-full border rounded-lg pl-8 pr-3 py-2"
             />
           </div>
+        )}
+
+        {/* Botão Limpar (também aparece mesmo sem chips, se houver busca) */}
+        {shouldShowClear && !hasChips && (
+          <button
+            type="button"
+            onClick={clearAll}
+            className="px-2.5 py-2 text-sm text-gray-700 border rounded-lg hover:bg-gray-50"
+            title="Limpar todos os filtros"
+          >
+            Limpar filtros
+          </button>
+        )}
+
+        {/* Botão Imprimir com filtros atuais (opcional) */}
+        {printHref && (
+          <Link
+            href={printHref}
+            className="inline-flex items-center gap-2 px-3 py-2 text-sm font-semibold text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+            title="Imprimir / Salvar PDF"
+            prefetch={false}
+          >
+            <Printer size={16} />
+            Imprimir
+          </Link>
         )}
 
         {/* Sino de notificações (opcional) */}

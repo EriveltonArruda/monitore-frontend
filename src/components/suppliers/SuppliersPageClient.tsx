@@ -1,11 +1,12 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
-import { PlusCircle, Pencil, Trash2, Search, Printer } from 'lucide-react';
+import React, { useState } from 'react';
+import { PlusCircle, Pencil, Trash2, Printer, X } from 'lucide-react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { SupplierFormModal } from './SupplierFormModal';
 import { DeleteConfirmationModal } from '../DeleteConfirmationModal';
 import { Pagination } from '../Pagination';
+import Topbar from '../layout/Topbar';
 
 type Supplier = {
   id: number;
@@ -27,9 +28,6 @@ export function SuppliersPageClient({ initialSuppliers, totalSuppliers }: Suppli
   const searchParams = useSearchParams();
   const pathname = usePathname();
 
-  // Campo de busca:
-  const [searchTerm, setSearchTerm] = useState(searchParams.get('search') || '');
-
   // Modais e estados
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -37,21 +35,31 @@ export function SuppliersPageClient({ initialSuppliers, totalSuppliers }: Suppli
   const [deletingSupplier, setDeletingSupplier] = useState<Supplier | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Atualiza a URL ao buscar (debounce para UX melhor)
-  useEffect(() => {
+  // Paginação
+  const totalPages = Math.ceil(totalSuppliers / ITEMS_PER_PAGE);
+  const currentPage = Number(searchParams.get('page')) || 1;
+
+  // Navegar para a página de impressão, preservando filtros relevantes
+  const goToPrint = () => {
+    const qs = new URLSearchParams();
+    const s = searchParams.get('search');
+    if (s) qs.set('search', s);
+    // alias “fornecedores” → “suppliers” já existe no [kind]/page.tsx
+    router.push(`/dashboard/print/fornecedores?${qs.toString()}`);
+  };
+
+  // Chips / limpar
+  const removeFilter = (key: string) => {
     const params = new URLSearchParams(searchParams.toString());
-    if (searchTerm) {
-      params.set('search', searchTerm);
-    } else {
-      params.delete('search');
-    }
+    params.delete(key);
     params.set('page', '1');
-    const debounce = setTimeout(() => {
-      router.push(`${pathname}?${params.toString()}`);
-    }, 300);
-    return () => clearTimeout(debounce);
-    // eslint-disable-next-line
-  }, [searchTerm, pathname, router]);
+    router.push(`${pathname}?${params.toString()}`);
+  };
+  const clearFilters = () => {
+    const params = new URLSearchParams();
+    params.set('page', '1');
+    router.push(`${pathname}?${params.toString()}`);
+  };
 
   // Modais
   const handleOpenCreateModal = () => { setEditingSupplier(null); setIsFormModalOpen(true); };
@@ -67,24 +75,15 @@ export function SuppliersPageClient({ initialSuppliers, totalSuppliers }: Suppli
       await fetch(`http://localhost:3001/suppliers/${deletingSupplier.id}`, { method: 'DELETE' });
       router.refresh();
       handleCloseModals();
-    } catch (error) {
+    } catch {
       alert('Ocorreu um erro ao deletar o fornecedor.');
     } finally {
       setIsDeleting(false);
     }
   };
 
-  // Paginação
-  const totalPages = Math.ceil(totalSuppliers / ITEMS_PER_PAGE);
-  const currentPage = Number(searchParams.get('page')) || 1;
-
-  // 🔹 Navegar para a página de impressão, preservando filtros relevantes
-  const goToPrint = () => {
-    const qs = new URLSearchParams();
-    const s = searchParams.get('search');
-    if (s) qs.set('search', s);
-    router.push(`/dashboard/print/fornecedores?${qs.toString()}`);
-  };
+  const qSearch = searchParams.get('search') || '';
+  const hasActive = !!qSearch;
 
   return (
     <>
@@ -102,48 +101,65 @@ export function SuppliersPageClient({ initialSuppliers, totalSuppliers }: Suppli
           isDeleting={isDeleting}
         />
       )}
+
       <div className="max-w-7xl mx-auto">
-        <div className="flex justify-between items-center mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-800">Fornecedores</h1>
-            <p className="text-sm text-gray-500">Gerencie os fornecedores dos seus produtos</p>
-          </div>
+        {/* TOPBAR com busca integrada (atualiza ?search= e reseta page=1) */}
+        <Topbar
+          title="Fornecedores"
+          subtitle="Gerencie os fornecedores dos seus produtos"
+          withSearch
+          searchPlaceholder="Buscar fornecedor…"
+          actions={
+            <>
+              {/* Imprimir (rota de impressão) */}
+              <button
+                onClick={goToPrint}
+                className="border text-gray-700 hover:bg-gray-50 font-medium py-2 px-3 rounded-lg flex items-center gap-2"
+                title="Imprimir (visualizar versão de impressão)"
+              >
+                <Printer size={18} />
+                <span>Imprimir</span>
+              </button>
 
-          <div className="flex items-center gap-2">
-            {/* Imprimir (navega para a rota de impressão) */}
+              <button
+                onClick={handleOpenCreateModal}
+                className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2"
+              >
+                <PlusCircle size={20} />
+                <span>Novo Fornecedor</span>
+              </button>
+            </>
+          }
+        />
+
+        {/* Chips dos filtros ativos */}
+        {hasActive && (
+          <div className="bg-white p-3 rounded-xl shadow-sm mb-6 flex flex-wrap items-center gap-2">
+            <span className="text-xs text-gray-500 mr-1">Filtros ativos:</span>
+
+            {!!qSearch && (
+              <button
+                className="inline-flex items-center gap-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2.5 py-1 rounded-full"
+                onClick={() => removeFilter('search')}
+                title={`Remover busca: “${qSearch}”`}
+              >
+                <span>Busca: “{qSearch}”</span>
+                <X size={12} />
+              </button>
+            )}
+
+            <div className="grow" />
             <button
-              onClick={goToPrint}
-              className="border text-gray-700 hover:bg-gray-50 font-medium py-2 px-3 rounded-lg flex items-center gap-2"
-              title="Imprimir (visualizar versão de impressão)"
+              className="text-xs text-blue-700 hover:underline"
+              onClick={clearFilters}
+              title="Limpar todos os filtros"
             >
-              <Printer size={18} />
-              <span>Imprimir</span>
-            </button>
-
-            <button
-              onClick={handleOpenCreateModal}
-              className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2"
-            >
-              <PlusCircle size={20} />
-              <span>Novo Fornecedor</span>
+              Limpar tudo
             </button>
           </div>
-        </div>
+        )}
 
-        {/* Campo de busca */}
-        <div className="bg-white p-4 rounded-xl shadow-sm flex items-center gap-4 mb-4">
-          <div className="relative flex-grow">
-            <Search size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Buscar fornecedor..."
-              value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
-              className="w-full h-10 pl-10 pr-4 border border-gray-200 rounded-lg"
-            />
-          </div>
-        </div>
-
+        {/* Tabela */}
         <div className="bg-white p-4 rounded-xl shadow-sm">
           <table className="w-full table-auto">
             <thead className="text-left border-b-2 border-gray-100">
@@ -174,14 +190,19 @@ export function SuppliersPageClient({ initialSuppliers, totalSuppliers }: Suppli
                   </td>
                 </tr>
               ))}
+
+              {initialSuppliers.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="p-6 text-center text-gray-500">
+                    Nenhum fornecedor encontrado com os filtros atuais.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
 
-        <Pagination
-          currentPage={currentPage}
-          totalPages={totalPages}
-        />
+        <Pagination currentPage={currentPage} totalPages={totalPages} />
       </div>
     </>
   );
