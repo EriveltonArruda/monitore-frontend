@@ -1,5 +1,7 @@
 // src/app/dashboard/municipalities/page.tsx
 import MunicipalitiesClient from '../../../components/municipalities/MunicipalitiesClient';
+import { RequireModule } from '@/components/RequireModule';
+import { UserModule } from '@/types/UserModule';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:3001';
 
@@ -31,14 +33,15 @@ export default async function Page({
 
   const { data, total, page, totalPages, limit } = await fetchMunicipalities(sp);
 
-  // ✅ Ajuste: passar os nomes de props que o Client espera
   return (
-    <MunicipalitiesClient
-      initialRows={data}
-      total={total}
-      page={page}
-      totalPages={totalPages}
-      limit={limit}
-    />
+    <RequireModule module={UserModule.MUNICIPIOS}>
+      <MunicipalitiesClient
+        initialRows={data}
+        total={total}
+        page={page}
+        totalPages={totalPages}
+        limit={limit}
+      />
+    </RequireModule>
   );
 }

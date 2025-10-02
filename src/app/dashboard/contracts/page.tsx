@@ -1,6 +1,8 @@
 // src/app/dashboard/contracts/page.tsx
 import { Suspense } from "react";
 import ContractsClient from "../../../components/contracts/ContractsClient";
+import { RequireModule } from "@/components/RequireModule";
+import { UserModule } from "@/types/UserModule";
 
 export const revalidate = 0;
 
@@ -58,15 +60,17 @@ export default async function Page({
     await Promise.all([fetchContracts(sp), fetchMunicipalities()]);
 
   return (
-    <Suspense>
-      <ContractsClient
-        initialContracts={data}
-        totalContracts={total}
-        page={page}
-        totalPages={totalPages}
-        limit={limit}
-        municipalities={municipalities.data || []}
-      />
-    </Suspense>
+    <RequireModule module={UserModule.CONTRATOS}>
+      <Suspense>
+        <ContractsClient
+          initialContracts={data}
+          totalContracts={total}
+          page={page}
+          totalPages={totalPages}
+          limit={limit}
+          municipalities={municipalities.data || []}
+        />
+      </Suspense>
+    </RequireModule>
   );
 }

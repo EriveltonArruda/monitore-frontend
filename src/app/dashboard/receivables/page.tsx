@@ -1,5 +1,7 @@
 // src/app/dashboard/receivables/page.tsx
 import ReceivablesClient from "../../../components/receivables/ReceivablesClient";
+import { RequireModule } from "@/components/RequireModule";
+import { UserModule } from "@/types/UserModule";
 
 export const revalidate = 0;
 
@@ -98,13 +100,15 @@ export default async function Page({
   ]);
 
   return (
-    <ReceivablesClient
-      initialReceivables={recv.data || []}
-      totalReceivables={recv.total || 0}
-      page={recv.page || page}
-      totalPages={recv.totalPages || 1}
-      limit={recv.limit || limit}
-      municipalities={municipalities}
-    />
+    <RequireModule module={UserModule.RECEBIVEIS}>
+      <ReceivablesClient
+        initialReceivables={recv.data || []}
+        totalReceivables={recv.total || 0}
+        page={recv.page || page}
+        totalPages={recv.totalPages || 1}
+        limit={recv.limit || limit}
+        municipalities={municipalities}
+      />
+    </RequireModule>
   );
 }

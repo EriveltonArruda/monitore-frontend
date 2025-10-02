@@ -2,6 +2,8 @@
 import { notFound } from 'next/navigation';
 import { PrintLayout } from '@/components/print/PrintLayout';
 import { kinds } from '@/lib/print/config';
+import { RequireModule } from '@/components/RequireModule';
+import { UserModule } from '@/types/UserModule';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:3001';
 
@@ -25,6 +27,33 @@ function normalizeKind(k: string): keyof typeof kinds | undefined {
   if (k in kinds) return k as keyof typeof kinds;
   if (k in aliases) return aliases[k];
   return undefined;
+}
+
+// 🔐 kind -> módulo(s) exigidos
+function requiredModulesFor(kind: keyof typeof kinds): { module?: UserModule; anyOf?: UserModule[] } {
+  switch (kind) {
+    case 'products':
+      return { module: UserModule.ESTOQUE };
+    case 'stock-movements':
+      return { module: UserModule.MOVIMENTACOES };
+    case 'accounts-payable':
+      // aceita quem tem o módulo de contas ou o de relatório de contas
+      return { anyOf: [UserModule.CONTAS_PAGAR, UserModule.RELATORIO_CONTAS_PAGAR] };
+    case 'contracts':
+      return { module: UserModule.CONTRATOS };
+    case 'receivables':
+      return { module: UserModule.RECEBIVEIS };
+    case 'suppliers':
+      return { module: UserModule.FORNECEDORES };
+    case 'contacts':
+      return { module: UserModule.CONTATOS };
+    case 'municipalities':
+      return { module: UserModule.MUNICIPIOS };
+    case 'departments':
+      return { module: UserModule.ORGAOS_SECRETARIAS };
+    default:
+      return {}; // sem restrição (não deve acontecer pois kinds controla)
+  }
 }
 
 // Converte o objeto de search params resolvido para Record<string,string>
@@ -124,13 +153,18 @@ export default async function Page({
   const { rows, meta } = await fetchList(kind, plainSP);
   const formattedRows = applyFormatters(rows, cfg.formatters);
 
+  // 🔐 Proteção por módulo
+  const guard = requiredModulesFor(kind);
+
   return (
-    <PrintLayout
-      title={cfg.title}
-      subtitle={cfg.subtitle?.(plainSP) ?? null}
-      columns={cfg.columns}
-      rows={formattedRows}
-      meta={meta}
-    />
+    <RequireModule module={guard.module} anyOf={guard.anyOf}>
+      <PrintLayout
+        title={cfg.title}
+        subtitle={cfg.subtitle?.(plainSP) ?? null}
+        columns={cfg.columns}
+        rows={formattedRows}
+        meta={meta}
+      />
+    </RequireModule>
   );
 }

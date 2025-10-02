@@ -1,5 +1,7 @@
 // src/app/dashboard/departments/page.tsx
 import DepartmentsClient from '../../../components/departments/DepartmentsClient';
+import { RequireModule } from '@/components/RequireModule';
+import { UserModule } from '@/types/UserModule';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:3001';
 
@@ -41,13 +43,15 @@ export default async function Page({
   ]);
 
   return (
-    <DepartmentsClient
-      initialDepartments={data}
-      total={total}
-      page={page}
-      totalPages={totalPages}
-      limit={limit}
-      municipalities={municipalities.data || []}
-    />
+    <RequireModule module={UserModule.ORGAOS_SECRETARIAS}>
+      <DepartmentsClient
+        initialDepartments={data}
+        total={total}
+        page={page}
+        totalPages={totalPages}
+        limit={limit}
+        municipalities={municipalities.data || []}
+      />
+    </RequireModule>
   );
 }
