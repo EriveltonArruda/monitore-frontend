@@ -24,7 +24,6 @@ import { ptBR } from "date-fns/locale";
 import { Pagination } from "@/components/Pagination";
 import { DeleteConfirmationModal } from "@/components/DeleteConfirmationModal";
 import ReceivablesFormModal from "./ReceivablesFormModal";
-// 🔧 caminho corrigido para o Topbar
 import Topbar from "../layout/Topbar";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:3001";
@@ -69,7 +68,8 @@ type Receivable = {
   periodEnd: string | null;
   deliveryDate: string | null;
   receivedAt: string | null;
-  status: "A_RECEBER" | "ATRASADO" | "RECEBIDO";
+  // o backend pode enviar ABERTO; exibimos como “Em Aberto” na UI
+  status: "A_RECEBER" | "ATRASADO" | "RECEBIDO" | "ABERTO";
   contractId: number;
   contract: {
     id: number;
@@ -81,8 +81,9 @@ type Receivable = {
   } | null;
 };
 
-// shape aceito pelo modal (contrato simplificado e opcional)
-type ModalReceivable = Omit<Receivable, "contract"> & {
+// === Tipo que o MODAL espera (sem ABERTO e sem undefined no status) ===
+type ModalReceivableStrict = Omit<Receivable, "contract" | "status"> & {
+  status: "A_RECEBER" | "ATRASADO" | "RECEBIDO";
   contract?: { municipalityId: number; departmentId: number | null };
 };
 
@@ -98,14 +99,18 @@ type Props = {
 const money = (v: number | null) =>
   (v ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
+// ➕ Suporte visual a "ABERTO" (mesmo estilo de A_RECEBER)
 const statusClass: Record<Receivable["status"], string> = {
   A_RECEBER: "bg-amber-100 text-amber-700",
+  ABERTO: "bg-amber-100 text-amber-700",
   ATRASADO: "bg-red-100 text-red-700",
   RECEBIDO: "bg-emerald-100 text-emerald-700",
 };
 
+// ➕ Rótulo “Em Aberto” para A_RECEBER e ABERTO
 const statusLabel: Record<Receivable["status"], string> = {
-  A_RECEBER: "A Receber",
+  A_RECEBER: "Em Aberto",
+  ABERTO: "Em Aberto",
   ATRASADO: "Atrasado",
   RECEBIDO: "Recebido",
 };
@@ -116,9 +121,13 @@ export default function ReceivablesClient(props: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const [rows] = useState<Receivable[]>(initialReceivables);
+  // sincroniza com dados revalidados do server após criar/editar
+  const [rows, setRows] = useState<Receivable[]>(initialReceivables);
+  useEffect(() => {
+    setRows(initialReceivables);
+  }, [initialReceivables]);
 
-  // ===== KPIs agregados do dataset atual =====
+  // ===== KPIs agregados =====
   const kpis = useMemo(() => {
     const acc = {
       total: rows.length,
@@ -129,7 +138,7 @@ export default function ReceivablesClient(props: Props) {
       liquido: 0,
     };
     for (const r of rows) {
-      if (r.status === "A_RECEBER") acc.aReceber++;
+      if (r.status === "A_RECEBER" || r.status === "ABERTO") acc.aReceber++;
       if (r.status === "ATRASADO") acc.atrasado++;
       if (r.status === "RECEBIDO") acc.recebido++;
       acc.bruto += r.grossAmount ?? 0;
@@ -138,15 +147,14 @@ export default function ReceivablesClient(props: Props) {
     return acc;
   }, [rows]);
 
-  // modal excluir
+  // modais
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState<Receivable | null>(null);
 
-  // modal form
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editing, setEditing] = useState<Receivable | undefined>(undefined);
 
-  // processamento por linha (marcar como recebido)
+  // processamento (recebido)
   const [processing, setProcessing] = useState<Set<number>>(new Set());
 
   // ===== filtros (querystring) =====
@@ -161,7 +169,7 @@ export default function ReceivablesClient(props: Props) {
   const qOrder = searchParams.get("order") || "desc";
   const currentPage = Number(searchParams.get("page") || page || 1);
 
-  // órgãos dependentes do município
+  // órgãos dependentes
   const [departments, setDepartments] = useState<Department[]>([]);
   useEffect(() => {
     const load = async () => {
@@ -178,7 +186,7 @@ export default function ReceivablesClient(props: Props) {
     load();
   }, [qMunicipalityId]);
 
-  // contratos dependentes (para filtro)
+  // contratos dependentes
   const [contracts, setContracts] = useState<Contract[]>([]);
   useEffect(() => {
     const load = async () => {
@@ -212,7 +220,6 @@ export default function ReceivablesClient(props: Props) {
     const val = e.target.value;
     if (val) params.set("municipalityId", val);
     else params.delete("municipalityId");
-    // reset dependentes
     params.delete("departmentId");
     params.delete("contractId");
     params.set("page", "1");
@@ -223,7 +230,6 @@ export default function ReceivablesClient(props: Props) {
     const val = e.target.value;
     if (val) params.set("departmentId", val);
     else params.delete("departmentId");
-    // reset contrato
     params.delete("contractId");
     params.set("page", "1");
     router.push(`?${params.toString()}`);
@@ -243,9 +249,9 @@ export default function ReceivablesClient(props: Props) {
 
   const orderIcon = qOrder === "asc" ? <SortAsc size={14} /> : <SortDesc size={14} />;
 
-  // 🔧 Adapter: remove o `contract` original e injeta o mini-contrato opcional
-  const adaptForModal = (r?: Receivable): ModalReceivable | undefined => {
-    if (!r) return undefined;
+  // === Adapter para o modal (TIPO E STATUS ESTRITOS) ===
+  const adaptForModal = (r?: Receivable): ModalReceivableStrict | null => {
+    if (!r) return null;
     const mini =
       r.contract != null
         ? {
@@ -253,8 +259,21 @@ export default function ReceivablesClient(props: Props) {
           departmentId: r.contract.departmentId,
         }
         : undefined;
-    const { contract: _discard, ...rest } = r;
-    return { ...rest, contract: mini };
+
+    // Normaliza status para o conjunto aceito pelo modal:
+    const normalizedStatus: ModalReceivableStrict["status"] =
+      r.status === "RECEBIDO"
+        ? "RECEBIDO"
+        : r.status === "ATRASADO"
+          ? "ATRASADO"
+          : "A_RECEBER"; // ABERTO e A_RECEBER viram A_RECEBER
+
+    const { contract: _discard, status: _s, ...rest } = r;
+    return {
+      ...rest,
+      status: normalizedStatus,
+      contract: mini,
+    };
   };
 
   const openEdit = (r: Receivable) => {
@@ -262,7 +281,7 @@ export default function ReceivablesClient(props: Props) {
     setIsFormOpen(true);
   };
 
-  // ✅ Ação rápida: marcar como RECEBIDO
+  // ✅ Marcar como RECEBIDO
   const markAsReceived = async (r: Receivable) => {
     if (r.status === "RECEBIDO") return;
     setProcessing((prev) => new Set(prev).add(r.id));
@@ -289,7 +308,7 @@ export default function ReceivablesClient(props: Props) {
     }
   };
 
-  // 📤 Exportar CSV (linhas atuais em tela)
+  // 📤 Exportar CSV
   const exportCSV = () => {
     const esc = (val: string) => {
       const needsQuote = /[;"\n\r]/.test(val);
@@ -346,7 +365,7 @@ export default function ReceivablesClient(props: Props) {
     URL.revokeObjectURL(url);
   };
 
-  // 📄 Exportar PDF (lista com filtros da URL)
+  // 📄 Exportar PDF
   const exportListPdf = async () => {
     const qs = new URLSearchParams();
     if (qMunicipalityId) qs.set("municipalityId", qMunicipalityId);
@@ -363,7 +382,7 @@ export default function ReceivablesClient(props: Props) {
     await download(url, tsFilename("recebiveis", "pdf"));
   };
 
-  // 🖨️ Imprimir (rota de impressão)
+  // 🖨️ Imprimir
   const goToPrint = () => {
     const qs = new URLSearchParams();
     if (qMunicipalityId) qs.set("municipalityId", qMunicipalityId);
@@ -375,7 +394,6 @@ export default function ReceivablesClient(props: Props) {
     if (qIssueTo) qs.set("issueTo", qIssueTo);
     if (qOrderBy) qs.set("orderBy", qOrderBy);
     if (qOrder) qs.set("order", qOrder);
-    // alias 'recebidos' → 'receivables' já tratado no [kind]/page.tsx
     router.push(`/dashboard/print/recebidos?${qs.toString()}`);
   };
 
@@ -383,7 +401,6 @@ export default function ReceivablesClient(props: Props) {
   const removeFilter = (key: string) => {
     const params = new URLSearchParams(searchParams.toString());
     params.delete(key);
-    // dependências
     if (key === "municipalityId") {
       params.delete("departmentId");
       params.delete("contractId");
@@ -444,6 +461,11 @@ export default function ReceivablesClient(props: Props) {
         <ReceivablesFormModal
           onClose={() => setIsFormOpen(false)}
           receivableToEdit={adaptForModal(editing)}
+          onSaved={() => {
+            setIsFormOpen(false);
+            setEditing(undefined);
+            router.refresh();
+          }}
         />
       )}
 
@@ -470,14 +492,12 @@ export default function ReceivablesClient(props: Props) {
       )}
 
       <div className="max-w-7xl mx-auto">
-        {/* Topbar sem campo de busca, apenas ações */}
         <Topbar
           title="Recebidos"
           subtitle="Notas / parcelas recebíveis por contrato"
           withSearch={false}
           actions={
             <>
-              {/* 🖨️ Imprimir (rota de impressão) */}
               <button
                 onClick={goToPrint}
                 className="border border-gray-300 hover:bg-gray-50 text-gray-700 font-medium py-2 px-3 rounded-lg flex items-center gap-2"
@@ -524,7 +544,7 @@ export default function ReceivablesClient(props: Props) {
             <p className="text-lg font-semibold">{kpis.total}</p>
           </div>
           <div className="bg-white rounded-xl p-3 shadow-sm">
-            <p className="text-xs text-gray-500">A Receber</p>
+            <p className="text-xs text-gray-500">Em Aberto</p>
             <p className="text-lg font-semibold">{kpis.aReceber}</p>
           </div>
           <div className="bg-white rounded-xl p-3 shadow-sm">
@@ -621,14 +641,15 @@ export default function ReceivablesClient(props: Props) {
                 title="Status"
               >
                 <option value="">Todos</option>
-                <option value="A_RECEBER">A Receber</option>
+                <option value="ABERTO">Em Aberto</option>
+                <option value="A_RECEBER">Em Aberto</option>
                 <option value="ATRASADO">Atrasado</option>
                 <option value="RECEBIDO">Recebido</option>
               </select>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-6 gap-3 mt-3">
+          <div className="grid grid-cols-1 md-grid-cols-6 md:grid-cols-6 gap-3 mt-3">
             <div>
               <label className="block text-xs text-gray-500 mb-1">Emissão de</label>
               <input
@@ -733,7 +754,10 @@ export default function ReceivablesClient(props: Props) {
                 onClick={() => removeFilter("status")}
                 title="Remover status"
               >
-                <span>Status: {statusLabel[qStatus as keyof typeof statusLabel] ?? qStatus}</span>
+                <span>
+                  {`Status: ${statusLabel[(qStatus as Receivable["status"]) || "A_RECEBER"] ?? qStatus
+                    }`}
+                </span>
                 <X size={12} />
               </button>
             )}
@@ -796,7 +820,7 @@ export default function ReceivablesClient(props: Props) {
         {/* Legenda de status */}
         <div className="mb-4 flex flex-wrap items-center gap-2 text-xs text-gray-600">
           <span className="inline-flex items-center gap-1">
-            <span className="inline-block h-2.5 w-2.5 rounded-full bg-amber-400" /> A Receber
+            <span className="inline-block h-2.5 w-2.5 rounded-full bg-amber-400" /> Em Aberto
           </span>
           <span className="inline-flex items-center gap-1">
             <span className="inline-block h-2.5 w-2.5 rounded-full bg-red-500" /> Atrasado
@@ -872,7 +896,6 @@ export default function ReceivablesClient(props: Props) {
                     </td>
                     <td className="p-3">
                       <div className="flex items-center gap-2">
-                        {/* PDF individual */}
                         <button
                           className="text-gray-400 hover:text-indigo-600"
                           title="Baixar PDF"
@@ -938,7 +961,6 @@ export default function ReceivablesClient(props: Props) {
           </table>
         </div>
 
-        {/* Paginação */}
         <Pagination currentPage={currentPage} totalPages={totalPages} />
       </div>
     </>
