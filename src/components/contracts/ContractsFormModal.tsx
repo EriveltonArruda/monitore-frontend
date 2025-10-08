@@ -1,4 +1,3 @@
-// src/app/dashboard/components/contracts/ContractsFormModal.tsx
 "use client";
 
 import React, { useEffect, useState } from "react";
@@ -16,7 +15,7 @@ type Contract = {
   startDate: string | null;
   endDate: string | null;
   monthlyValue: number | null;
-  status: string;
+  status: string; // backend envia string
 };
 
 type Municipality = { id: number; name: string };
@@ -24,10 +23,10 @@ type Department = { id: number; name: string; municipalityId: number };
 
 type Props = {
   onClose: () => void;
-  onSaved?: () => void; // ✅ permite que o pai feche e dê refresh
+  onSaved?: () => void; // pai fecha e dá refresh
   contractToEdit?: Contract | null;
-  presetMunicipalityId?: number; // ✅ preset ao abrir “Novo Contrato”
-  presetDepartmentId?: number;   // ✅ preset ao abrir “Novo Contrato”
+  presetMunicipalityId?: number; // presets para Novo
+  presetDepartmentId?: number; // presets para Novo
 };
 
 function parseBRNumber(raw: string): number | null {
@@ -57,8 +56,8 @@ export default function ContractFormModal({
     departmentId: presetDepartmentId ? String(presetDepartmentId) : "",
     startDate: "",
     endDate: "",
-    monthlyValue: "", // aceita "50.000,00"
-    status: "ATIVO" as "ATIVO" | "ENCERRADO" | "SUSPENSO",
+    monthlyValue: "", // "50.000,00"
+    status: "PENDENTE" as string, // ✅ padrão agora PENDENTE
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -74,9 +73,10 @@ export default function ContractFormModal({
     load();
   }, []);
 
-  // Preencher form em edição OU com presets
+  // Preencher form em edição (ou aplicar presets em criação)
   useEffect(() => {
     if (isEdit && contractToEdit) {
+      const statusUpper = (contractToEdit.status || "PENDENTE").toString().toUpperCase();
       setForm({
         code: contractToEdit.code || "",
         description: contractToEdit.description || "",
@@ -88,10 +88,9 @@ export default function ContractFormModal({
           contractToEdit.monthlyValue != null
             ? String(contractToEdit.monthlyValue).replace(".", ",")
             : "",
-        status: (contractToEdit.status as "ATIVO" | "ENCERRADO" | "SUSPENSO") || "ATIVO",
+        status: statusUpper,
       });
     } else if (!isEdit) {
-      // aplica presets apenas em criação
       setForm((prev) => ({
         ...prev,
         municipalityId: presetMunicipalityId ? String(presetMunicipalityId) : prev.municipalityId,
@@ -108,7 +107,9 @@ export default function ContractFormModal({
         setDepartments([]);
         return;
       }
-      const res = await fetch(`${API_BASE}/departments?municipalityId=${form.municipalityId}&limit=9999`);
+      const res = await fetch(
+        `${API_BASE}/departments?municipalityId=${form.municipalityId}&limit=9999`
+      );
       const json = await res.json().catch(() => ({ data: [] as Department[] }));
       setDepartments(json.data || []);
     };
@@ -128,7 +129,7 @@ export default function ContractFormModal({
     setErr(null);
 
     try {
-      // Validação de datas (se ambas setadas)
+      // Validação básica de período
       if (form.startDate && form.endDate) {
         const start = new Date(form.startDate);
         const end = new Date(form.endDate);
@@ -137,7 +138,8 @@ export default function ContractFormModal({
         }
       }
 
-      const monthlyValueParsed = form.monthlyValue !== "" ? parseBRNumber(form.monthlyValue) : null;
+      const monthlyValueParsed =
+        form.monthlyValue !== "" ? parseBRNumber(form.monthlyValue) : null;
       if (form.monthlyValue !== "" && monthlyValueParsed == null) {
         throw new Error("Valor Mensal inválido. Use formato 1234,56.");
       }
@@ -150,7 +152,7 @@ export default function ContractFormModal({
         startDate: form.startDate || undefined,
         endDate: form.endDate || undefined,
         monthlyValue: monthlyValueParsed ?? undefined,
-        status: form.status || undefined,
+        status: form.status ? form.status.toUpperCase() : undefined, // sempre UPPERCASE
       };
 
       let res: Response;
@@ -179,7 +181,7 @@ export default function ContractFormModal({
         );
       }
 
-      // sucesso
+      // sucesso → fecha e atualiza lista
       if (onSaved) onSaved();
       else {
         router.refresh();
@@ -227,6 +229,7 @@ export default function ContractFormModal({
               onChange={handleChange}
               className="w-full border rounded-md p-2 bg-white"
             >
+              <option value="PENDENTE">PENDENTE</option>
               <option value="ATIVO">ATIVO</option>
               <option value="ENCERRADO">ENCERRADO</option>
               <option value="SUSPENSO">SUSPENSO</option>
@@ -327,7 +330,11 @@ export default function ContractFormModal({
             />
           </div>
 
-          {err && <div className="md:col-span-2 text-sm text-red-600 whitespace-pre-line">{err}</div>}
+          {err && (
+            <div className="md:col-span-2 text-sm text-red-600 whitespace-pre-line">
+              {err}
+            </div>
+          )}
 
           <div className="md:col-span-2 flex justify-end gap-3 pt-2">
             <button

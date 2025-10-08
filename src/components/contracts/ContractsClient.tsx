@@ -1,4 +1,3 @@
-// src/components/contracts/ContractsClient.tsx
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
@@ -60,7 +59,7 @@ type Contract = {
   startDate: string | null;
   endDate: string | null;
   monthlyValue: number | null;
-  status: string;
+  status: string; // backend já envia string
   signedAt?: string | null;
   processNumber?: string | null;
   municipality?: { id: number; name: string };
@@ -87,6 +86,21 @@ const alertStyles: Record<NonNullable<Contract["alertTag"]>, string> = {
   "D-7": "bg-orange-500 text-white",
   "D-30": "bg-emerald-500 text-white",
 };
+
+// Estilos para status; fallback cinza
+const statusStyles: Record<string, string> = {
+  PENDENTE: "bg-amber-100 text-amber-700",
+  ATIVO: "bg-emerald-100 text-emerald-700",
+  VIGENTE: "bg-emerald-100 text-emerald-700",
+  ENCERRADO: "bg-gray-200 text-gray-700",
+  SUSPENSO: "bg-amber-100 text-amber-700",
+  RESCINDIDO: "bg-red-100 text-red-700",
+};
+
+function prettifyStatus(s?: string) {
+  if (!s) return "—";
+  return s.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+}
 
 function alertTooltip(c: Contract) {
   if (!c.alertTag) return "";
@@ -293,7 +307,7 @@ export default function ContractsClient(props: Props) {
     }
   };
 
-  // 🖨️ Imprimir (navega para rota de impressão com filtros atuais)
+  // 🖨️ Imprimir (rota de impressão)
   const goToPrint = () => {
     const qs = new URLSearchParams();
     if (qMunicipalityId) qs.set("municipalityId", qMunicipalityId);
@@ -304,17 +318,13 @@ export default function ContractsClient(props: Props) {
     if (qDueInDays) qs.set("dueInDays", qDueInDays);
     if (qExpiredOnly) qs.set("expiredOnly", qExpiredOnly);
     if (qOrder) qs.set("order", qOrder);
-    // alias 'contratos' → 'contracts' já existe no [kind]/page.tsx
     router.push(`/dashboard/print/contratos?${qs.toString()}`);
   };
 
-  // presets para “Novo Contrato” com base nos filtros aplicados
-  const presetMunicipalityId = qMunicipalityId
-    ? Number(qMunicipalityId)
-    : undefined;
+  // presets para “Novo Contrato”
+  const presetMunicipalityId = qMunicipalityId ? Number(qMunicipalityId) : undefined;
   const presetDepartmentId = qDepartmentId ? Number(qDepartmentId) : undefined;
 
-  // ===== Render =====
   return (
     <>
       {/* Modal de Form */}
@@ -354,7 +364,6 @@ export default function ContractsClient(props: Props) {
           notifications={notifCounts}
           actions={
             <>
-              {/* 🖨️ Imprimir (rota de impressão) */}
               <button
                 onClick={goToPrint}
                 className="border text-gray-700 hover:bg-gray-50 font-medium py-2 px-3 rounded-lg flex items-center gap-2"
@@ -364,7 +373,6 @@ export default function ContractsClient(props: Props) {
                 <span>Imprimir</span>
               </button>
 
-              {/* PDF direto do backend */}
               <button
                 onClick={exportListPdf}
                 className="border text-gray-700 hover:bg-gray-50 font-medium py-2 px-3 rounded-lg flex items-center gap-2"
@@ -377,6 +385,7 @@ export default function ContractsClient(props: Props) {
               <button
                 onClick={openCreate}
                 className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2"
+                title="Novo contrato"
               >
                 <PlusCircle size={20} />
                 <span>Novo Contrato</span>
@@ -385,7 +394,7 @@ export default function ContractsClient(props: Props) {
           }
         />
 
-        {/* Filtros (sem campo de busca; Topbar cuida do ?search=) */}
+        {/* Filtros */}
         <div className="bg-white p-4 rounded-xl shadow-sm mb-3">
           <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
             <div>
@@ -406,9 +415,7 @@ export default function ContractsClient(props: Props) {
             </div>
 
             <div>
-              <label className="block text-xs text-gray-500 mb-1">
-                Órgão/Secretaria
-              </label>
+              <label className="block text-xs text-gray-500 mb-1">Órgão/Secretaria</label>
               <select
                 title="Órgão/Secretaria"
                 value={qDepartmentId}
@@ -426,9 +433,7 @@ export default function ContractsClient(props: Props) {
             </div>
 
             <div>
-              <label className="block text-xs text-gray-500 mb-1">
-                Vigência (Fim) de
-              </label>
+              <label className="block text-xs text-gray-500 mb-1">Vigência (Fim) de</label>
               <input
                 type="date"
                 value={qEndFrom}
@@ -438,9 +443,7 @@ export default function ContractsClient(props: Props) {
             </div>
 
             <div>
-              <label className="block text-xs text-gray-500 mb-1">
-                Vigência (Fim) até
-              </label>
+              <label className="block text-xs text-gray-500 mb-1">Vigência (Fim) até</label>
               <input
                 type="date"
                 value={qEndTo}
@@ -450,9 +453,7 @@ export default function ContractsClient(props: Props) {
             </div>
 
             <div>
-              <label className="block text-xs text-gray-500 mb-1">
-                Ordenar por fim
-              </label>
+              <label className="block text-xs text-gray-500 mb-1">Ordenar por fim</label>
               <select
                 title="Ordenar por fim"
                 value={qOrder}
@@ -467,9 +468,7 @@ export default function ContractsClient(props: Props) {
 
           <div className="grid grid-cols-1 md:grid-cols-5 gap-3 mt-3">
             <div>
-              <label className="block text-xs text-gray-500 mb-1">
-                Vencendo em (dias)
-              </label>
+              <label className="block text-xs text-gray-500 mb-1">Vencendo em (dias)</label>
               <input
                 type="number"
                 min={1}
@@ -638,6 +637,7 @@ export default function ContractsClient(props: Props) {
                 <th className="p-3 font-semibold text-gray-600">Órgão</th>
                 <th className="p-3 font-semibold text-gray-600">Vigência</th>
                 <th className="p-3 font-semibold text-gray-600">Valor Mensal</th>
+                <th className="p-3 font-semibold text-gray-600">Status</th>
                 <th className="p-3 font-semibold text-gray-600">Alerta</th>
                 <th className="p-3 font-semibold text-gray-600 w-40">Ações</th>
               </tr>
@@ -653,6 +653,9 @@ export default function ContractsClient(props: Props) {
                     : "—",
                 ].join(" → ");
 
+                const statusKey = (c.status || "").toUpperCase();
+                const cls = statusStyles[statusKey] || "bg-gray-100 text-gray-700";
+
                 return (
                   <tr key={c.id} className="border-b hover:bg-gray-50 last:border-b-0">
                     <td className="p-3 font-medium text-gray-800">{c.code}</td>
@@ -665,6 +668,18 @@ export default function ContractsClient(props: Props) {
                       </div>
                     </td>
                     <td className="p-3 text-gray-700">{money(c.monthlyValue)}</td>
+
+                    {/* Status */}
+                    <td className="p-3">
+                      <span
+                        className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full ${cls}`}
+                        title={prettifyStatus(c.status)}
+                        aria-label={prettifyStatus(c.status)}
+                      >
+                        {prettifyStatus(c.status)}
+                      </span>
+                    </td>
+
                     <td className="p-3">
                       {c.alertTag && (
                         <span
@@ -721,7 +736,7 @@ export default function ContractsClient(props: Props) {
 
               {contracts.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="p-6 text-center text-gray-500">
+                  <td colSpan={8} className="p-6 text-center text-gray-500">
                     Nenhum contrato encontrado com os filtros atuais.
                   </td>
                 </tr>
