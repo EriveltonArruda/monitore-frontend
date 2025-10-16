@@ -1,13 +1,18 @@
+// src/components/travel/TravelReturnModal.tsx
 "use client";
 
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 
 type Props = {
   expenseId: number;
   currency?: string | null;
   onClose: () => void;
   onSaved?: () => void;
+  /** Opcional: se informado, exibe e valida o máximo permitdo para devolução */
+  maxAmount?: number;
 };
+
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:3001";
 
 // Aceita "50,00", "50.00" e "1.234,56"
 function parseAmountBR(raw: string): number {
@@ -17,11 +22,16 @@ function parseAmountBR(raw: string): number {
   return Number(normalized);
 }
 
+function fmtBR(n: number) {
+  return n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
 export function TravelReturnModal({
   expenseId,
   currency = "BRL",
   onClose,
   onSaved,
+  maxAmount,
 }: Props) {
   const [amount, setAmount] = useState<string>("");
   const [returnedAt, setReturnedAt] = useState<string>("");
@@ -31,6 +41,11 @@ export function TravelReturnModal({
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  const remainderText = useMemo(() => {
+    if (typeof maxAmount !== "number") return null;
+    return `${currency} ${fmtBR(Math.max(0, maxAmount))}`;
+  }, [maxAmount, currency]);
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSubmitting(true);
@@ -38,8 +53,17 @@ export function TravelReturnModal({
 
     try {
       const value = parseAmountBR(amount);
+
       if (!Number.isFinite(value) || value <= 0) {
         throw new Error("Informe um valor de devolução válido e maior que zero.");
+      }
+
+      if (typeof maxAmount === "number" && value > maxAmount) {
+        throw new Error(
+          `O valor informado excede o restante permitido para devolução (${currency} ${fmtBR(
+            maxAmount
+          )}).`
+        );
       }
 
       const payload = {
@@ -49,14 +73,11 @@ export function TravelReturnModal({
         notes: notes || undefined,
       };
 
-      const res = await fetch(
-        `http://localhost:3001/travel-expenses/${expenseId}/returns`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        }
-      );
+      const res = await fetch(`${API_BASE}/travel-expenses/${expenseId}/returns`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -106,7 +127,13 @@ export function TravelReturnModal({
                 onChange={(e) => setAmount(e.target.value)}
                 placeholder="Ex.: 100,00"
                 inputMode="decimal"
+                aria-label="Valor da devolução"
               />
+              {typeof maxAmount === "number" && (
+                <p className="mt-1 text-xs text-gray-500">
+                  Restante para devolver: <span className="font-medium">{remainderText}</span>
+                </p>
+              )}
             </div>
 
             <div>
@@ -118,6 +145,7 @@ export function TravelReturnModal({
                 className="w-full border rounded-lg px-3 py-2"
                 value={returnedAt}
                 onChange={(e) => setReturnedAt(e.target.value)}
+                aria-label="Data da devolução"
               />
             </div>
 
@@ -128,6 +156,7 @@ export function TravelReturnModal({
                 value={method}
                 onChange={(e) => setMethod(e.target.value)}
                 placeholder="Ex.: Dinheiro, Pix, Depósito..."
+                aria-label="Método de devolução"
               />
             </div>
 
@@ -140,6 +169,7 @@ export function TravelReturnModal({
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 placeholder="Ex.: Devolução de troco do adiantamento"
+                aria-label="Observações da devolução"
               />
             </div>
           </div>

@@ -1,6 +1,9 @@
+// src/components/travel/TravelExpensesFormModal.tsx
 "use client";
 
 import React, { useEffect, useState } from "react";
+
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:3001";
 
 type TravelExpense = {
   id: number;
@@ -11,10 +14,10 @@ type TravelExpense = {
   city?: string | null;
   state?: string | null;
   expenseDate?: string | null; // yyyy-mm-dd
-  currency?: string | null;    // BRL
-  amount: number;              // em reais
+  currency?: string | null; // BRL
+  amount: number; // em reais
   receiptUrl?: string | null;
-  status: string;              // PENDENTE | PARCIAL | REEMBOLSADO
+  status: string; // PENDENTE | PARCIAL | REEMBOLSADO
 };
 
 type Props = {
@@ -25,7 +28,7 @@ type Props = {
 
 // Aceita "50,00", "50.00" e "1.234,56"
 function parseAmountBR(raw: string): number {
-  const s = String(raw).trim();
+  const s = String(raw ?? "").trim();
   if (!s) return NaN;
   const normalized = s.replace(/\./g, "").replace(",", ".");
   return Number(normalized);
@@ -47,7 +50,9 @@ export function TravelExpensesFormModal({ onClose, expenseToEdit, onSaved }: Pro
     return `${yyyy}-${mm}-${dd}`;
   });
   const [currency, setCurrency] = useState<string>(expenseToEdit?.currency ?? "BRL");
-  const [amount, setAmount] = useState<string>(expenseToEdit ? String(expenseToEdit.amount.toFixed(2)).replace(".", ",") : "");
+  const [amount, setAmount] = useState<string>(
+    expenseToEdit ? String(expenseToEdit.amount.toFixed(2)).replace(".", ",") : ""
+  );
   const [receiptUrl, setReceiptUrl] = useState<string>(expenseToEdit?.receiptUrl ?? "");
 
   const [submitting, setSubmitting] = useState(false);
@@ -95,16 +100,16 @@ export function TravelExpensesFormModal({ onClose, expenseToEdit, onSaved }: Pro
         description: description || undefined,
         category: category || undefined,
         city: city || undefined,
-        state: stateUF || undefined,
+        state: stateUF ? stateUF.toUpperCase() : undefined,
         expenseDate: expenseDate || undefined,
-        currency: currency || undefined,
+        currency: currency ? currency.toUpperCase() : undefined,
         amount: Number.isFinite(parsedAmount) ? parsedAmount : undefined,
         receiptUrl: receiptUrl || undefined,
       };
 
       const url = isEdit
-        ? `http://localhost:3001/travel-expenses/${expenseToEdit!.id}`
-        : `http://localhost:3001/travel-expenses`;
+        ? `${API_BASE}/travel-expenses/${expenseToEdit!.id}`
+        : `${API_BASE}/travel-expenses`;
       const method = isEdit ? "PATCH" : "POST";
 
       const res = await fetch(url, {
@@ -187,7 +192,8 @@ export function TravelExpensesFormModal({ onClose, expenseToEdit, onSaved }: Pro
 
             <div>
               <label className="block text-sm text-gray-600 mb-1">Categoria</label>
-              <select title="Categoria da despesa"
+              <select
+                title="Categoria da despesa"
                 className="w-full border rounded-lg px-3 py-2"
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}

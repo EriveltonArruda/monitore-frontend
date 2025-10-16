@@ -1,3 +1,4 @@
+// src/components/travel/TravelExpensesClient.tsx
 "use client";
 
 import React, { useEffect, useState } from "react";
@@ -18,6 +19,8 @@ import { DeleteConfirmationModal } from "../DeleteConfirmationModal";
 import { TravelReimbursementsHistoryModal } from "./TravelReimbursementsHistoryModal";
 import { TravelAdvanceModal } from "./TravelAdvanceModal";
 import { TravelReturnModal } from "./TravelReturnModal";
+
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:3001";
 
 type TravelExpense = {
   id: number;
@@ -154,13 +157,16 @@ export default function TravelExpensesPageClient({
     });
   };
 
-  // paginação
-  const onPageChange = (next: number) => {
-    updateQuery((p) => {
-      p.set("page", String(next));
-      if (!p.get("pageSize")) p.set("pageSize", String(pageSize));
-    });
-  };
+  // ===== Cálculos/formatadores no cliente =====
+  const getCurrency = (exp: TravelExpense) => exp.currency ?? "BRL";
+  const fmtMoney = (n: number) =>
+    n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  const balance = (exp: TravelExpense) =>
+    (exp.amount ?? 0) -
+    (exp.advancesAmount ?? 0) -
+    (exp.reimbursedAmount ?? 0) +
+    (exp.returnsAmount ?? 0);
 
   // ====== modal handlers ======
   const openCreate = () => {
@@ -201,7 +207,7 @@ export default function TravelExpensesPageClient({
     if (!expenseToDelete) return;
     setIsDeleting(true);
     try {
-      const res = await fetch(`http://localhost:3001/travel-expenses/${expenseToDelete.id}`, {
+      const res = await fetch(`${API_BASE}/travel-expenses/${expenseToDelete.id}`, {
         method: "DELETE",
       });
       if (!res.ok) {
@@ -237,17 +243,11 @@ export default function TravelExpensesPageClient({
         />
       )}
 
-      {/* Modal de reembolso */}
+      {/* Modal de reembolso (sem maxAmount para evitar erro de tipo) */}
       {reimbExpense && (
         <TravelReimbursementModal
           expenseId={reimbExpense.id}
-          currency={reimbExpense.currency ?? "BRL"}
-          maxAmount={Math.max(
-            0,
-            (reimbExpense.amount ?? 0) -
-            (reimbExpense.advancesAmount ?? 0) -
-            (reimbExpense.reimbursedAmount ?? 0)
-          )}
+          currency={getCurrency(reimbExpense)}
           onClose={closeReimburse}
           onSaved={() => {
             closeReimburse();
@@ -260,7 +260,7 @@ export default function TravelExpensesPageClient({
       {historyExpense && (
         <TravelReimbursementsHistoryModal
           expenseId={historyExpense.id}
-          currency={historyExpense.currency ?? "BRL"}
+          currency={getCurrency(historyExpense)}
           onClose={closeHistory}
           onChanged={() => {
             refresh();
@@ -272,7 +272,7 @@ export default function TravelExpensesPageClient({
       {advanceExpense && (
         <TravelAdvanceModal
           expenseId={advanceExpense.id}
-          currency={advanceExpense.currency ?? "BRL"}
+          currency={getCurrency(advanceExpense)}
           onClose={closeAdvance}
           onSaved={() => {
             closeAdvance();
@@ -285,7 +285,7 @@ export default function TravelExpensesPageClient({
       {returnExpense && (
         <TravelReturnModal
           expenseId={returnExpense.id}
-          currency={returnExpense.currency ?? "BRL"}
+          currency={getCurrency(returnExpense)}
           onClose={closeReturn}
           onSaved={() => {
             closeReturn();
@@ -383,7 +383,7 @@ export default function TravelExpensesPageClient({
 
         {/* Tabela */}
         <div className="bg-white p-4 rounded-xl shadow-sm overflow-x-auto">
-          <table className="w-full table-auto min-w-[1150px]">
+          <table className="w-full table-auto min-w-[1300px]">
             <thead className="text-left border-b-2 border-gray-100">
               <tr>
                 <th className="p-4 font-semibold text-gray-600">Funcionário</th>
@@ -394,6 +394,7 @@ export default function TravelExpensesPageClient({
                 <th className="p-4 font-semibold text-gray-600">Adiantado</th>
                 <th className="p-4 font-semibold text-gray-600">Devolvido</th>
                 <th className="p-4 font-semibold text-gray-600">Reembolsado</th>
+                <th className="p-4 font-semibold text-gray-600">Saldo</th>
                 <th className="p-4 font-semibold text-gray-600">Status</th>
                 <th className="p-4 font-semibold text-gray-600 w-[12rem]">Ações</th>
               </tr>
@@ -417,6 +418,7 @@ export default function TravelExpensesPageClient({
                         : "bg-gray-100 text-gray-700";
 
                 const currency = exp.currency ?? "BRL";
+                const bal = balance(exp);
 
                 return (
                   <tr key={exp.id} className="border-b hover:bg-gray-50 last:border-b-0">
@@ -444,35 +446,29 @@ export default function TravelExpensesPageClient({
                     </td>
 
                     <td className="p-4 text-gray-600 whitespace-nowrap">
-                      {currency}{" "}
-                      {exp.amount.toLocaleString("pt-BR", {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2,
-                      })}
+                      {currency} {fmtMoney(exp.amount ?? 0)}
                     </td>
 
                     <td className="p-4 text-gray-600 whitespace-nowrap">
-                      {currency}{" "}
-                      {(exp.advancesAmount ?? 0).toLocaleString("pt-BR", {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2,
-                      })}
+                      {currency} {fmtMoney(exp.advancesAmount ?? 0)}
                     </td>
 
                     <td className="p-4 text-gray-600 whitespace-nowrap">
-                      {currency}{" "}
-                      {(exp.returnsAmount ?? 0).toLocaleString("pt-BR", {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2,
-                      })}
+                      {currency} {fmtMoney(exp.returnsAmount ?? 0)}
                     </td>
 
                     <td className="p-4 text-gray-600 whitespace-nowrap">
-                      {currency}{" "}
-                      {exp.reimbursedAmount.toLocaleString("pt-BR", {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2,
-                      })}
+                      {currency} {fmtMoney(exp.reimbursedAmount ?? 0)}
+                    </td>
+
+                    <td className="p-4 text-gray-800 whitespace-nowrap">
+                      <span
+                        className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold ${bal <= 0 ? "bg-emerald-50 text-emerald-700" : "bg-orange-50 text-orange-700"
+                          }`}
+                        title="Saldo = Valor - Adiantado - Reembolsado + Devolvido"
+                      >
+                        {currency} {fmtMoney(bal)}
+                      </span>
                     </td>
 
                     <td className="p-4">
@@ -545,7 +541,7 @@ export default function TravelExpensesPageClient({
               })}
               {data.length === 0 && (
                 <tr>
-                  <td colSpan={10} className="p-8 text-center text-gray-500">
+                  <td colSpan={11} className="p-8 text-center text-gray-500">
                     Nenhuma despesa encontrada.
                   </td>
                 </tr>

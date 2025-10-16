@@ -28,8 +28,7 @@ export function Pagination({
 
   const clamp = (n: number) => Math.min(Math.max(n, 1), totalPages);
 
-  const pageClasses =
-    size === "sm" ? "px-3 py-1 text-sm" : "px-4 py-2 text-sm";
+  const pageClasses = size === "sm" ? "px-3 py-1 text-sm" : "px-4 py-2 text-sm";
 
   // Cria URL mantendo filtros atuais e garantindo limites válidos
   const createPageURL = (pageNumber: number) => {

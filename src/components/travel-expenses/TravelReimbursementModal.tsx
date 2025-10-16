@@ -1,11 +1,14 @@
+// src/components/travel/TravelReimbursementModal.tsx
 "use client";
 
 import React, { useState } from "react";
 
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:3001";
+
 type Props = {
   expenseId: number;
   currency?: string | null;
-  maxAmount?: number;            // valor máximo permitido (ex.: total - reembolsado)
+  maxAmount?: number;            // valor máximo permitido (ex.: total - adiantado - reembolsado)
   onClose: () => void;
   onSaved?: () => void;          // callback para atualizar a listagem após salvar
 };
@@ -45,7 +48,12 @@ export function TravelReimbursementModal({
         throw new Error("Informe um valor de reembolso válido e maior que zero.");
       }
       if (typeof maxAmount === "number" && value > maxAmount) {
-        throw new Error(`Valor excede o restante a reembolsar (restante: ${maxAmount.toFixed(2)}).`);
+        throw new Error(
+          `Valor excede o restante a reembolsar (restante: ${maxAmount.toLocaleString("pt-BR", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          })}).`
+        );
       }
 
       const payload = {
@@ -55,7 +63,7 @@ export function TravelReimbursementModal({
         notes: notes || undefined,
       };
 
-      const res = await fetch(`http://localhost:3001/travel-expenses/${expenseId}/reimbursements`, {
+      const res = await fetch(`${API_BASE}/travel-expenses/${expenseId}/reimbursements`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -65,7 +73,9 @@ export function TravelReimbursementModal({
         const err = await res.json().catch(() => ({}));
         throw new Error(
           err?.message
-            ? Array.isArray(err.message) ? err.message.join("\n") : String(err.message)
+            ? Array.isArray(err.message)
+              ? err.message.join("\n")
+              : String(err.message)
             : "Falha ao registrar reembolso"
         );
       }
@@ -108,7 +118,11 @@ export function TravelReimbursementModal({
               />
               {typeof maxAmount === "number" && (
                 <p className="mt-1 text-xs text-gray-500">
-                  Restante: {maxAmount.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  Restante:{" "}
+                  {maxAmount.toLocaleString("pt-BR", {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}
                 </p>
               )}
             </div>

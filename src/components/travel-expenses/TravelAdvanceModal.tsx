@@ -1,6 +1,9 @@
+// src/components/travel/TravelAdvanceModal.tsx
 "use client";
 
 import React, { useState } from "react";
+
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:3001";
 
 type Props = {
   expenseId: number;
@@ -49,7 +52,7 @@ export function TravelAdvanceModal({
         notes: notes || undefined,
       };
 
-      const res = await fetch(`http://localhost:3001/travel-expenses/${expenseId}/advances`, {
+      const res = await fetch(`${API_BASE}/travel-expenses/${expenseId}/advances`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -59,7 +62,9 @@ export function TravelAdvanceModal({
         const err = await res.json().catch(() => ({}));
         throw new Error(
           err?.message
-            ? Array.isArray(err.message) ? err.message.join("\n") : String(err.message)
+            ? Array.isArray(err.message)
+              ? err.message.join("\n")
+              : String(err.message)
             : "Falha ao registrar adiantamento"
         );
       }
@@ -92,7 +97,9 @@ export function TravelAdvanceModal({
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm text-gray-600 mb-1">Valor ({currency})</label>
+              <label className="block text-sm text-gray-600 mb-1">
+                Valor ({currency})
+              </label>
               <input
                 className="w-full border rounded-lg px-3 py-2"
                 value={amount}
@@ -103,7 +110,9 @@ export function TravelAdvanceModal({
             </div>
 
             <div>
-              <label className="block text-sm text-gray-600 mb-1">Data do Adiantamento</label>
+              <label className="block text-sm text-gray-600 mb-1">
+                Data do Adiantamento
+              </label>
               <input
                 type="date"
                 className="w-full border rounded-lg px-3 py-2"
@@ -123,7 +132,9 @@ export function TravelAdvanceModal({
             </div>
 
             <div className="md:col-span-2">
-              <label className="block text-sm text-gray-600 mb-1">Observações</label>
+              <label className="block text-sm text-gray-600 mb-1">
+                Observações
+              </label>
               <textarea
                 className="w-full border rounded-lg px-3 py-2 min-h-[90px] resize-y"
                 value={notes}
